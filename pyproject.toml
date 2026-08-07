@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "opensre-yandex-cloud"
+version = "0.1.0"
+description = "Yandex Cloud tools and alert routing for OpenSRE, shipped as an external plugin."
+requires-python = ">=3.12"
+dependencies = ["httpx", "pyjwt", "cryptography"]
+
+[project.optional-dependencies]
+# Reading Cloud Logging entries is gRPC-only; kept optional like the fork does.
+logs = ["yandexcloud"]
+
+[tool.setuptools.packages.find]
+include = ["yc_plugin*"]
+
+[tool.setuptools.package-data]
+yc_plugin = ["**/*.json", "skills/*.md"]

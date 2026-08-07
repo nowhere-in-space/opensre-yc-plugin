@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# Virtualenv / tooling
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+authorized_key*.json
+
+# OS
+.DS_Store
