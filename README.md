@@ -53,27 +53,49 @@ The optional `logs` extra adds gRPC support for reading Cloud Logging entries:
 pip install -e "/path/to/opensre-yc[logs]"
 ```
 
-## Credentials
+## Setup
 
-The integration reads credentials from the environment. Set a folder and one of
-the authentication methods:
+Configure once and the settings are saved to `~/.opensre-yc/config.json` (owner
+readable only). No environment variables to keep:
 
 ```
-YC_FOLDER_ID=<folder-id>
+opensre-yc configure
 ```
 
-Then one of:
+The wizard asks how to authenticate and, optionally, whether to run OpenSRE's
+language model on Yandex AI Studio. Then run investigations through the plugin:
 
-- `YC_SA_KEY_FILE=/path/to/authorized_key.json` — service-account key file
-- `YC_SA_KEY='{...}'` — the same key inline
-- `YC_TOKEN=<oauth-token>` — OAuth token
-- `YC_IAM_TOKEN=<iam-token>` — a ready IAM token
-- `YC_USE_METADATA=true` — on a Yandex Cloud VM, use the attached service
-  account. The folder is read from the metadata service, so `YC_FOLDER_ID` is
-  optional in this mode.
+```
+opensre-yc run investigate -i <alert.json>
+```
 
-The service account needs read access to the folder. For a full investigation,
-the `viewer` role on the folder is enough.
+`opensre-yc run` installs the plugin and hands the rest of the command to
+OpenSRE, so the plugin is active without changing OpenSRE's entry point.
+
+### Authentication methods
+
+- **Instance service account** — on a Yandex Cloud VM. Nothing to store: the
+  folder and the token both come from the metadata service.
+- **Service-account key** — a key file, or the key pasted during setup.
+- **OAuth token** or **IAM token**.
+
+Environment variables (`YC_FOLDER_ID`, `YC_SA_KEY_FILE`, `YC_TOKEN`,
+`YC_IAM_TOKEN`, `YC_USE_METADATA`) still work and override the saved config field
+by field, which is convenient in CI or a container.
+
+The service account needs read access to the folder. The `viewer` role is
+enough for a full investigation.
+
+## Language model on Yandex AI Studio
+
+Yandex AI Studio speaks the OpenAI API, so OpenSRE can run on YandexGPT, Alice
+AI, DeepSeek, Qwen, or GPT-OSS with no code change. Enable it during
+`opensre-yc configure`, and the plugin points OpenSRE's OpenAI-compatible
+provider at Yandex on every run.
+
+On a Yandex Cloud VM the bearer token is minted from the instance metadata
+service automatically, so there is nothing to store or rotate. The full setup,
+model list, and trade-offs are in [docs/yandex-ai-studio.md](docs/yandex-ai-studio.md).
 
 ## Alerts
 

@@ -26,36 +26,17 @@ def yc_source(sources: dict[str, dict]) -> dict[str, Any]:
 
 
 def _env_credentials() -> dict[str, Any]:
-    """Resolve credentials straight from the environment.
+    """Resolve credentials from the saved config file, with env overrides.
 
-    The plugin ships without an integration registered in the core catalog — that
-    needs a hook core does not yet expose — so tools read YC_* / the metadata flag
-    themselves rather than from sources[SOURCE]. Same shape client_from_params
-    expects, so nothing downstream changes.
+    A blocker-free plugin has no entry in the core integration catalog, so tools
+    resolve credentials themselves. They come from ``~/.opensre-yc/config.json``
+    (written by ``opensre-yc configure``) and any YC_* environment variable takes
+    precedence, which keeps the file the source of truth without losing the
+    env-override escape hatch.
     """
-    import os
+    from yc_plugin import config
 
-    from yc_plugin.constants import (
-        YC_CLOUD_ID_ENV,
-        YC_FOLDER_ID_ENV,
-        YC_IAM_TOKEN_ENV,
-        YC_SA_KEY_ENV,
-        YC_SA_KEY_FILE_ENV,
-        YC_TOKEN_ENV,
-        YC_USE_METADATA_ENV,
-    )
-
-    use_metadata = os.getenv(YC_USE_METADATA_ENV, "").strip().lower() in {"1", "true", "yes", "on"}
-    return {
-        "folder_id": os.getenv(YC_FOLDER_ID_ENV, "").strip(),
-        "cloud_id": os.getenv(YC_CLOUD_ID_ENV, "").strip(),
-        "sa_key_file": os.getenv(YC_SA_KEY_FILE_ENV, "").strip(),
-        "sa_key": os.getenv(YC_SA_KEY_ENV, "").strip(),
-        "oauth_token": os.getenv(YC_TOKEN_ENV, "").strip(),
-        "iam_token": os.getenv(YC_IAM_TOKEN_ENV, "").strip(),
-        "use_metadata": use_metadata,
-        "yc_backend": None,
-    }
+    return config.resolved_credentials()
 
 
 def yc_available_or_backend(sources: dict[str, dict]) -> bool:

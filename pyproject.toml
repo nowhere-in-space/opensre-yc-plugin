@@ -9,6 +9,9 @@ description = "Yandex Cloud tools and alert routing for OpenSRE, shipped as an e
 requires-python = ">=3.12"
 dependencies = ["httpx", "pyjwt", "cryptography"]
 
+[project.scripts]
+opensre-yc = "yc_plugin.cli:main"
+
 [project.optional-dependencies]
 # Reading Cloud Logging entries is gRPC-only; kept optional like the fork does.
 logs = ["yandexcloud"]
