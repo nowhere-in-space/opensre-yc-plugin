@@ -207,10 +207,7 @@ class TestLogReads:
         """Everything else in the integration works without it, so say so."""
 
         def _raise(*_a: Any, **_k: Any) -> None:
-            raise LogReadingUnavailableError(
-                "Reading Cloud Logging entries needs the Yandex Cloud gRPC stubs. "
-                "Install with: pip install 'opensre[yandex_cloud]'"
-            )
+            raise LogReadingUnavailableError(_real_missing_dependency_message())
 
         monkeypatch.setattr(
             "yc_plugin.yc_logging.client.YandexLoggingClient.read_entries", _raise
@@ -218,7 +215,65 @@ class TestLogReads:
         result = read_yc_logs(log_group_id="e23abc", **_CREDENTIALS)
 
         assert result["available"] is False
-        assert "yandex_cloud" in result["error"]
+        assert "pip install" in result["error"]
+        assert "log groups and reading metrics work" in result["error"]
+
+
+def _real_missing_dependency_message() -> str:
+    """Return the message the plugin itself produces when the stubs are absent.
+
+    Taken from the real code path rather than written out here: a hand-copied
+    message drifts, and an install hint that names something unavailable is
+    exactly the kind of mistake a test should catch rather than enshrine.
+    """
+    import sys
+
+    from yc_plugin.yc_logging import client
+
+    original = sys.modules.get("grpc")
+    sys.modules["grpc"] = None  # type: ignore[assignment]  # makes the import fail
+    try:
+        client._load_logging_protos()
+    except LogReadingUnavailableError as exc:
+        return str(exc)
+    finally:
+        if original is None:
+            sys.modules.pop("grpc", None)
+        else:
+            sys.modules["grpc"] = original
+    raise AssertionError("the stubs imported when they were meant to be missing")
+
+
+class TestTheInstallHintIsRealisable:
+    """An install hint naming something that cannot be installed is worse than none.
+
+    The message used to name ``opensre[yandex_cloud]`` — the extra from the fork
+    this plugin was carved out of, which does not exist for this package. Anyone
+    following it got "no matches found" and no way forward.
+    """
+
+    def test_it_names_this_package(self) -> None:
+        assert "opensre-yandex-cloud[logs]" in _real_missing_dependency_message()
+
+    def test_the_extra_it_names_actually_exists(self) -> None:
+        import re
+        import tomllib
+        from pathlib import Path
+
+        pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+        metadata = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]
+        message = _real_missing_dependency_message()
+
+        for name, extra in re.findall(r"pip install '([\w-]+)\[(\w+)\]'", message):
+            assert name == metadata["name"], name
+            assert extra in metadata["optional-dependencies"], extra
+
+    def test_it_says_what_still_works_without_the_stubs(self) -> None:
+        """Otherwise a missing optional dependency reads as a broken integration."""
+        message = _real_missing_dependency_message()
+
+        assert "log groups" in message
+        assert "metrics" in message
 
     def test_entries_come_back_with_the_window(self, monkeypatch: pytest.MonkeyPatch) -> None:
         def _read(*_a: Any, **_k: Any) -> dict[str, Any]:
