@@ -57,7 +57,50 @@ def install() -> None:
     _keep_alerts_through_adapter_reinstall()
 
     _configure_llm()
+    _configure_kubernetes()
     logger.info("yandex_cloud plugin installed: %d tool packages", len(_TOOL_PACKAGES))
+
+
+def _configure_kubernetes() -> None:
+    """Hand OpenSRE's kubernetes integration a kubeconfig for the chosen cluster.
+
+    Workload reads — pods, events, pod logs — are that integration's job and it
+    already has twelve tools for them. All it needs is a kubeconfig, and
+    Managed Kubernetes hands out the parts to build one, so this adds no tools
+    of its own. Thin on purpose: the assembly lives in ``yc_mk8s.kubeconfig``.
+    """
+    from yc_plugin import config, metadata
+    from yc_plugin.yc_mk8s import kubeconfig
+
+    settings = config.kubernetes_settings()
+    if not settings:
+        return
+
+    kubeconfig.configure(
+        settings,
+        _iam_token(),
+        on_instance=metadata.is_available(),
+    )
+
+
+def _iam_token() -> str:
+    """Mint an IAM token from whichever credential is configured, or "" on failure.
+
+    The Kubernetes API server takes an IAM token specifically — an API key or a
+    raw OAuth token is not accepted — so this goes through the same exchange the
+    REST client uses rather than passing a stored credential straight through.
+    """
+    from yc_plugin import config
+    from yc_plugin.yandex_cloud.availability import client_from_params
+
+    client = client_from_params(config.resolved_credentials())
+    if client is None:
+        return ""
+    try:
+        return client.auth.token()
+    except Exception:
+        logger.warning("yandex_cloud kubernetes: could not mint an IAM token", exc_info=True)
+        return ""
 
 
 def _register_alerts() -> None:

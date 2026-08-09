@@ -70,7 +70,7 @@ class TestWhatEachAuthModeSaves:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """On a VM the folder comes from metadata, so a blank answer is correct."""
-        saved = _run_wizard(monkeypatch, answers=("1", "", "2"))
+        saved = _run_wizard(monkeypatch, answers=("1", "", "2", "2"))
 
         assert saved["auth"] == "metadata"
         assert saved["folder_id"] == ""
@@ -79,13 +79,13 @@ class TestWhatEachAuthModeSaves:
     def test_the_instance_account_still_accepts_an_explicit_folder(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        saved = _run_wizard(monkeypatch, answers=("1", "b1gexplicit", "2"))
+        saved = _run_wizard(monkeypatch, answers=("1", "b1gexplicit", "2", "2"))
 
         assert saved["folder_id"] == "b1gexplicit"
 
     def test_a_key_file_is_stored_by_path(self, monkeypatch: pytest.MonkeyPatch) -> None:
         saved = _run_wizard(
-            monkeypatch, answers=("2", "b1gfolder", "b1ccloud", "/keys/sa.json", "2")
+            monkeypatch, answers=("2", "b1gfolder", "b1ccloud", "/keys/sa.json", "2", "2")
         )
 
         assert saved["auth"] == "sa_key_file"
@@ -98,7 +98,7 @@ class TestWhatEachAuthModeSaves:
         """A key pasted into a terminal must not be left on screen."""
         saved = _run_wizard(
             monkeypatch,
-            answers=("3", "b1gfolder", "", "2"),
+            answers=("3", "b1gfolder", "", "2", "2"),
             secrets=('{"id": "aje1"}',),
         )
 
@@ -109,7 +109,7 @@ class TestWhatEachAuthModeSaves:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         saved = _run_wizard(
-            monkeypatch, answers=("4", "b1gfolder", "", "2"), secrets=("y0_secret",)
+            monkeypatch, answers=("4", "b1gfolder", "", "2", "2"), secrets=("y0_secret",)
         )
 
         assert saved["auth"] == "oauth"
@@ -119,7 +119,7 @@ class TestWhatEachAuthModeSaves:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         saved = _run_wizard(
-            monkeypatch, answers=("5", "b1gfolder", "", "2"), secrets=("t1.short",)
+            monkeypatch, answers=("5", "b1gfolder", "", "2", "2"), secrets=("t1.short",)
         )
 
         assert saved["auth"] == "iam"
@@ -129,7 +129,7 @@ class TestWhatEachAuthModeSaves:
 class TestTheFileItWrites:
     def test_only_its_owner_can_read_it(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """It may hold a service-account key, so the mode is part of the contract."""
-        _run_wizard(monkeypatch, answers=("1", "", "2"))
+        _run_wizard(monkeypatch, answers=("1", "", "2", "2"))
 
         mode = stat.S_IMODE(config.CONFIG_PATH.stat().st_mode)
 
@@ -140,7 +140,7 @@ class TestTheFileItWrites:
     ) -> None:
         assert not config.CONFIG_DIR.exists()
 
-        _run_wizard(monkeypatch, answers=("1", "", "2"))
+        _run_wizard(monkeypatch, answers=("1", "", "2", "2"))
 
         assert config.CONFIG_PATH.is_file()
 
@@ -148,9 +148,9 @@ class TestTheFileItWrites:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """Re-running is a fresh configuration, not a merge onto the old one."""
-        _run_wizard(monkeypatch, answers=("5", "b1gold", "", "2"), secrets=("t1.old",))
+        _run_wizard(monkeypatch, answers=("5", "b1gold", "", "2", "2"), secrets=("t1.old",))
 
-        saved = _run_wizard(monkeypatch, answers=("1", "b1gnew", "2"))
+        saved = _run_wizard(monkeypatch, answers=("1", "b1gnew", "2", "2"))
 
         assert saved["auth"] == "metadata"
         assert saved["folder_id"] == "b1gnew"
@@ -161,13 +161,13 @@ class TestTheLanguageModelSection:
     def test_declining_it_leaves_no_llm_settings(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        saved = _run_wizard(monkeypatch, answers=("1", "", "2"))
+        saved = _run_wizard(monkeypatch, answers=("1", "", "2", "2"))
 
         assert "llm" not in saved
         assert config.llm_settings() == {}
 
     def test_accepting_it_stores_the_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        saved = _run_wizard(monkeypatch, answers=("1", "", "1", "yandexgpt-5.1"))
+        saved = _run_wizard(monkeypatch, answers=("1", "", "1", "yandexgpt-5.1", "2"))
 
         assert saved["llm"] == {"enabled": True, "model": "yandexgpt-5.1"}
         assert config.llm_settings()["model"] == "yandexgpt-5.1"
@@ -175,9 +175,176 @@ class TestTheLanguageModelSection:
     def test_an_empty_answer_takes_the_default_model(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        saved = _run_wizard(monkeypatch, answers=("1", "", "1", ""))
+        saved = _run_wizard(monkeypatch, answers=("1", "", "1", "", "2"))
 
         assert saved["llm"]["model"] == "gpt-oss-120b"
+
+
+class _Clusters:
+    """Stands in for the Managed Kubernetes listing, without a network call."""
+
+    def __init__(self, *clusters: Any) -> None:
+        self.clusters = list(clusters)
+        self.asked = False
+
+    def __call__(self, _client: Any, folder_id: str = "") -> list[Any]:
+        self.asked = True
+        return self.clusters
+
+
+def _cluster(cluster_id: str, name: str, **overrides: Any) -> Any:
+    from yc_plugin.yc_mk8s.kubeconfig import ClusterAccess
+
+    fields: dict[str, Any] = {
+        "cluster_id": cluster_id,
+        "name": name,
+        "internal_endpoint": "https://10.128.0.7",
+        "external_endpoint": "https://158.160.187.208",
+        "ca_certificate": "-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n",
+        "status": "RUNNING",
+    }
+    fields.update(overrides)
+    return ClusterAccess(**fields)
+
+
+def _offering(monkeypatch: pytest.MonkeyPatch, listing: _Clusters) -> None:
+    """Make the wizard's cluster lookup answer from *listing*."""
+    monkeypatch.setattr(
+        "yc_plugin.yandex_cloud.availability.client_from_params", lambda _params: object()
+    )
+    monkeypatch.setattr("yc_plugin.yc_mk8s.kubeconfig.list_clusters", listing)
+
+
+class TestTheKubernetesSection:
+    def test_declining_it_asks_nothing_and_saves_nothing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Answering no must not reach the API at all."""
+        listing = _Clusters(_cluster("cat1a", "prod"))
+        _offering(monkeypatch, listing)
+
+        saved = _run_wizard(monkeypatch, answers=("1", "", "2", "2"))
+
+        assert "kubernetes" not in saved
+        assert listing.asked is False
+
+    def test_accepting_it_saves_the_chosen_cluster(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _offering(monkeypatch, _Clusters(_cluster("cat1a", "prod"), _cluster("cat1b", "staging")))
+
+        saved = _run_wizard(monkeypatch, answers=("1", "", "2", "1", "2"))
+
+        assert saved["kubernetes"]["enabled"] is True
+        assert saved["kubernetes"]["cluster_id"] == "cat1b"
+        assert saved["kubernetes"]["cluster_name"] == "staging"
+
+    def test_the_endpoints_and_ca_are_saved_but_not_a_token(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import json
+
+        _offering(monkeypatch, _Clusters(_cluster("cat1a", "prod")))
+
+        saved = _run_wizard(monkeypatch, answers=("1", "", "2", "1", "1"))
+        kubernetes = saved["kubernetes"]
+
+        assert kubernetes["internal_endpoint"] == "https://10.128.0.7"
+        assert kubernetes["ca_certificate"].startswith("-----BEGIN")
+        assert "token" not in json.dumps(kubernetes)
+
+    def test_a_folder_with_no_clusters_says_so_and_moves_on(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        _offering(monkeypatch, _Clusters())
+
+        saved = _run_wizard(monkeypatch, answers=("1", "", "2", "1"))
+
+        assert "kubernetes" not in saved
+        assert "No Managed Kubernetes clusters" in capsys.readouterr().out
+
+    def test_unusable_credentials_do_not_abort_the_wizard(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The rest of the configuration is still worth saving."""
+        monkeypatch.setattr(
+            "yc_plugin.yandex_cloud.availability.client_from_params", lambda _params: None
+        )
+
+        saved = _run_wizard(monkeypatch, answers=("1", "", "2", "1"))
+
+        assert saved["auth"] == "metadata"
+        assert "kubernetes" not in saved
+        assert "not usable" in capsys.readouterr().out
+
+    def test_a_listing_failure_does_not_abort_the_wizard(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        def _explode(_client: Any, folder_id: str = "") -> list[Any]:
+            raise RuntimeError("folder is not readable")
+
+        monkeypatch.setattr(
+            "yc_plugin.yandex_cloud.availability.client_from_params", lambda _params: object()
+        )
+        monkeypatch.setattr("yc_plugin.yc_mk8s.kubeconfig.list_clusters", _explode)
+
+        saved = _run_wizard(monkeypatch, answers=("1", "", "2", "1"))
+
+        assert "kubernetes" not in saved
+        assert "folder is not readable" in capsys.readouterr().out
+
+    def test_an_unreachable_cluster_is_flagged_during_setup(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Better now than as a timeout in the middle of an investigation."""
+        monkeypatch.setattr("yc_plugin.metadata.is_available", lambda: False)
+        _offering(monkeypatch, _Clusters(_cluster("cat1a", "prod", external_endpoint="")))
+
+        _run_wizard(monkeypatch, answers=("1", "", "2", "1", "1"))
+
+        assert "only from inside its cloud network" in capsys.readouterr().out
+
+
+class TestReRunningStartsFromTheLastAnswers:
+    """A wizard this long is unusable if changing one setting means retyping all."""
+
+    def test_the_authentication_method_is_pre_selected(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _run_wizard(monkeypatch, answers=("5", "b1gfolder", "", "2", "2"), secrets=("t1.old",))
+
+        # Every answer blank: the previous choices should carry through.
+        saved = _run_wizard(monkeypatch, answers=("", "", "", "", ""), secrets=("",))
+
+        assert saved["auth"] == "iam"
+        assert saved["folder_id"] == "b1gfolder"
+
+    def test_a_stored_secret_survives_a_blank_answer(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Nobody should have to paste a service-account key twice."""
+        _run_wizard(monkeypatch, answers=("5", "b1gfolder", "", "2", "2"), secrets=("t1.old",))
+
+        saved = _run_wizard(monkeypatch, answers=("", "", "", "", ""), secrets=("",))
+
+        assert saved["iam_token"] == "t1.old"
+
+    def test_the_model_is_pre_selected(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        _run_wizard(monkeypatch, answers=("1", "", "1", "yandexgpt-5.1", "2"))
+
+        saved = _run_wizard(monkeypatch, answers=("", "", "", "", ""))
+
+        assert saved["llm"]["model"] == "yandexgpt-5.1"
+
+    def test_the_previously_chosen_cluster_is_pre_selected(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        _offering(monkeypatch, _Clusters(_cluster("cat1a", "prod"), _cluster("cat1b", "staging")))
+        _run_wizard(monkeypatch, answers=("1", "", "2", "1", "2"))
+
+        saved = _run_wizard(monkeypatch, answers=("", "", "", "", ""))
+
+        assert saved["kubernetes"]["cluster_id"] == "cat1b"
 
 
 class TestChoosingFromAList:

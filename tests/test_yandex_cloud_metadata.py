@@ -45,6 +45,18 @@ _YC_ENV_VARS = (
 )
 
 
+#: Captured while importing, before the shared fixture stubs it out. This module
+#: is the one place that tests availability detection itself, so it needs the
+#: real implementation rather than the "not in the cloud" answer used elsewhere.
+_REAL_IS_AVAILABLE = metadata.is_available
+
+
+@pytest.fixture(autouse=True)
+def _real_availability(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(metadata, "is_available", _REAL_IS_AVAILABLE)
+    _REAL_IS_AVAILABLE.cache_clear()
+
+
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in _YC_ENV_VARS:

@@ -76,3 +76,9 @@ def llm_settings() -> dict[str, Any]:
     """Return the language-model settings, or an empty mapping when disabled."""
     llm = load().get("llm")
     return dict(llm) if isinstance(llm, dict) and llm.get("enabled") else {}
+
+
+def kubernetes_settings() -> dict[str, Any]:
+    """Return the Managed Kubernetes settings, or an empty mapping when disabled."""
+    kubernetes = load().get("kubernetes")
+    return dict(kubernetes) if isinstance(kubernetes, dict) and kubernetes.get("enabled") else {}
