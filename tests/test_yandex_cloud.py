@@ -349,7 +349,7 @@ class TestClient:
         def _never(*_a: Any, **_k: Any) -> None:
             raise AssertionError("no request should be made")
 
-        monkeypatch.setattr(httpx, "request", _never)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _never)
         response = self._client().get("not-a-service", "/v1/things")
 
         assert response["success"] is False
@@ -364,7 +364,7 @@ class TestClient:
         def _never(*_a: Any, **_k: Any) -> None:
             raise AssertionError("no request should be made")
 
-        monkeypatch.setattr(httpx, "request", _never)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _never)
         response = self._client().get("compute", path)
 
         assert response["success"] is False
@@ -386,7 +386,7 @@ class TestClient:
                 headers={"x-request-id": "req-7"},
             )
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         response = self._client().get("compute", "/compute/v1/instances")
 
         assert captured["method"] == "GET"
@@ -405,7 +405,7 @@ class TestClient:
             captured.update(kwargs["params"])
             return httpx.Response(200, json={})
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         self._client().get("compute", "/compute/v1/instances", page_token="page-2")
 
         assert captured["pageToken"] == "page-2"
@@ -414,8 +414,7 @@ class TestClient:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             lambda *_a, **_k: httpx.Response(403, json={"message": "permission denied"}),
         )
         response = self._client().get("compute", "/compute/v1/instances")
@@ -432,7 +431,7 @@ class TestClient:
             attempts["n"] += 1
             return httpx.Response(429, json={"message": "too many requests"})
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.time.sleep", lambda _s: None)
         response = self._client().get("compute", "/compute/v1/instances")
 
@@ -449,7 +448,7 @@ class TestClient:
                 return httpx.Response(401, json={"message": "token expired"})
             return httpx.Response(200, json={"ok": True})
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         client = self._client(oauth_token="y0", iam_token="")
         monkeypatch.setattr(
             "yc_plugin.yandex_cloud.auth.mint_iam_token_with_ttl",
@@ -462,8 +461,7 @@ class TestClient:
 
     def test_probe_reports_the_folder_it_reached(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             lambda *_a, **_k: httpx.Response(200, json={"id": FOLDER, "name": "production"}),
         )
         probe = self._client().probe_access()
@@ -476,8 +474,7 @@ class TestClient:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             lambda *_a, **_k: httpx.Response(403, json={"message": "denied"}),
         )
         probe = self._client().probe_access()

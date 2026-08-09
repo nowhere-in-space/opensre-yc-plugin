@@ -77,8 +77,7 @@ class TestRegistration:
 class TestCompute:
     def test_stopped_instances_are_picked_out(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             _responder(
                 {
                     "/compute/v1/instances": {
@@ -99,8 +98,7 @@ class TestCompute:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             _responder(
                 {
                     "/compute/v1/instances": {
@@ -130,8 +128,7 @@ class TestCompute:
 
     def test_name_filter_narrows_the_list(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             _responder(
                 {
                     "/compute/v1/instances": {
@@ -150,8 +147,7 @@ class TestCompute:
     def test_serial_console_is_read_for_diagnosis(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """The console is where an unreachable VM still reports what is wrong."""
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             _responder(
                 {
                     ":serialPortOutput": {"contents": "kernel: Out of memory"},
@@ -171,7 +167,7 @@ class TestCompute:
                 return httpx.Response(400, json={"message": "instance is stopped"})
             return httpx.Response(200, json={"id": "fhm1", "status": "STOPPED"})
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         result = get_yc_instance_diagnostics(instance_id="fhm1", **_CREDENTIALS)
 
         assert result["available"] is True
@@ -187,8 +183,7 @@ class TestCompute:
 class TestManagedKubernetes:
     def test_a_degraded_cluster_is_picked_out(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             _responder(
                 {
                     "/managed-kubernetes/v1/clusters": {
@@ -248,7 +243,7 @@ class TestManagedKubernetes:
                 },
             )
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         result = get_yc_k8s_cluster(cluster_id="cat1", **_CREDENTIALS)
 
         assert [group["name"] for group in result["node_groups"]] == ["workers"]
@@ -258,8 +253,7 @@ class TestManagedKubernetes:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             _responder(
                 {
                     "/nodeGroups": {"nodeGroups": []},
@@ -317,7 +311,7 @@ class TestManagedDatabases:
     ) -> None:
         """Most folders run one or two engines, so empty is the usual truth."""
         monkeypatch.setattr(
-            httpx, "request", lambda *_a, **_k: httpx.Response(200, json={"clusters": []})
+            "yc_plugin.yandex_cloud.rest_client.send_request", lambda *_a, **_k: httpx.Response(200, json={"clusters": []})
         )
         result = list_yc_db_clusters(**_CREDENTIALS)
 
@@ -328,8 +322,7 @@ class TestManagedDatabases:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             lambda *_a, **_k: httpx.Response(403, json={"message": "permission denied"}),
         )
         result = list_yc_db_clusters(**_CREDENTIALS)
@@ -360,7 +353,7 @@ class TestManagedDatabases:
                 )
             return httpx.Response(403, json={"message": "permission denied"})
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         result = list_yc_db_clusters(**_CREDENTIALS)
 
         assert result["available"] is True
@@ -369,8 +362,7 @@ class TestManagedDatabases:
 
     def test_recent_operations_expose_a_failover(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             _responder(
                 {
                     "/hosts": {
@@ -402,8 +394,7 @@ class TestManagedDatabases:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             _responder(
                 {
                     "/hosts": {
@@ -427,8 +418,7 @@ class TestServerless:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             _responder(
                 {
                     "/functions/v1/functions": {"functions": [{"id": "f1", "name": "api"}]},
@@ -445,8 +435,7 @@ class TestServerless:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             _responder(
                 {
                     "versions:byFunction": {
@@ -467,8 +456,7 @@ class TestServerless:
     def test_disabled_logging_is_called_out(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Otherwise the agent chases logs that were never written."""
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             _responder(
                 {
                     "versions:byFunction": {"id": "v1", "logOptions": {"disabled": True}},
@@ -487,8 +475,7 @@ class TestLoadBalancers:
     ) -> None:
         """Partial target health is what explains intermittent errors."""
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             _responder(
                 {
                     ":targetStates": {
@@ -525,7 +512,7 @@ class TestLoadBalancers:
             seen.append(url)
             return httpx.Response(200, json={"loadBalancers": []})
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         get_yc_lb_health(type="application", **_CREDENTIALS)
 
         assert all("apploadbalancer" in url for url in seen)

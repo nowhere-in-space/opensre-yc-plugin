@@ -70,7 +70,7 @@ class TestGuardrails:
         def _never(*_a: Any, **_k: Any) -> None:
             raise AssertionError("no request should be made")
 
-        monkeypatch.setattr(httpx, "request", _never)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _never)
         result = execute_yc_operation(service="not-a-service", path="/v1/x", **_CREDENTIALS)
 
         assert result["success"] is False
@@ -88,7 +88,7 @@ class TestGuardrails:
         def _never(*_a: Any, **_k: Any) -> None:
             raise AssertionError("no request should be made")
 
-        monkeypatch.setattr(httpx, "request", _never)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _never)
         result = execute_yc_operation(service="compute", path=path, **_CREDENTIALS)
 
         assert result["success"] is False
@@ -102,7 +102,7 @@ class TestGuardrails:
             seen.append(method)
             return httpx.Response(200, json={})
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         execute_yc_operation(service="compute", path="/compute/v1/instances", **_CREDENTIALS)
 
         assert seen == ["GET"]
@@ -123,7 +123,7 @@ class TestReads:
             captured.update(kwargs["params"])
             return httpx.Response(200, json={"instances": []})
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         execute_yc_operation(service="compute", path="/compute/v1/instances", **_CREDENTIALS)
 
         assert captured["folderId"] == FOLDER
@@ -135,7 +135,7 @@ class TestReads:
             captured.update(kwargs["params"])
             return httpx.Response(200, json={})
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         execute_yc_operation(
             service="compute",
             path="/compute/v1/instances",
@@ -167,7 +167,7 @@ class TestReads:
             captured.update(kwargs["params"])
             return httpx.Response(200, json={})
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         result = execute_yc_operation(
             service="compute",
             path="/compute/v1/instances",
@@ -180,8 +180,7 @@ class TestReads:
 
     def test_the_next_page_token_is_surfaced(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             lambda *_a, **_k: httpx.Response(200, json={"nextPageToken": "page-2"}),
         )
         result = execute_yc_operation(
@@ -192,8 +191,7 @@ class TestReads:
 
     def test_long_responses_are_truncated(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             lambda *_a, **_k: httpx.Response(
                 200, json={"instances": [{"id": str(n)} for n in range(150)]}
             ),

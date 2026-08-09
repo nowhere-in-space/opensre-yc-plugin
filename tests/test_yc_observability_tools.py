@@ -117,7 +117,7 @@ class TestMetricReads:
             captured["body"] = kwargs["json"]
             return httpx.Response(200, json={"metrics": []})
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         query_yc_metrics(query='cpu_usage{service="compute"}', **_CREDENTIALS)
 
         assert captured["method"] == "POST"
@@ -127,8 +127,7 @@ class TestMetricReads:
 
     def test_series_are_summarized(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             lambda *_a, **_k: httpx.Response(
                 200,
                 json={
@@ -152,7 +151,7 @@ class TestMetricReads:
         def _never(*_a: Any, **_k: Any) -> None:
             raise AssertionError("no request should be made")
 
-        monkeypatch.setattr(httpx, "request", _never)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _never)
         result = query_yc_metrics(query="cpu_usage", aggregation="MEDIAN", **_CREDENTIALS)
 
         assert result["available"] is False
@@ -164,7 +163,7 @@ class TestMetricReads:
                 return httpx.Response(200, json={"names": ["cpu_usage", "memory_usage"]})
             return httpx.Response(200, json={"keys": ["host", "service"]})
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         result = list_yc_metrics(**_CREDENTIALS)
 
         assert result["names"] == ["cpu_usage", "memory_usage"]
@@ -252,7 +251,7 @@ class TestLogReads:
                 200, json={"groups": [{"id": "e23abc", "name": "default", "status": "ACTIVE"}]}
             )
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         result = list_yc_log_groups(**_CREDENTIALS)
 
         assert "logging.api.cloud.yandex.net" in captured["url"]
@@ -295,7 +294,7 @@ class TestAuditTrails:
 
     def test_no_trail_at_all_says_how_to_create_one(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(
-            httpx, "request", lambda *_a, **_k: httpx.Response(200, json={"trails": []})
+            "yc_plugin.yandex_cloud.rest_client.send_request", lambda *_a, **_k: httpx.Response(200, json={"trails": []})
         )
         result = read_yc_audit_events(**_CREDENTIALS)
 
@@ -306,8 +305,7 @@ class TestAuditTrails:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             lambda *_a, **_k: httpx.Response(
                 200,
                 json={
@@ -348,8 +346,7 @@ class TestAuditTrails:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setattr(
-            httpx,
-            "request",
+            "yc_plugin.yandex_cloud.rest_client.send_request",
             lambda *_a, **_k: httpx.Response(
                 200,
                 json={

@@ -195,7 +195,7 @@ class TestClientOnAnInstance:
             captured["headers"] = kwargs["headers"]
             return httpx.Response(200, json={"id": FOLDER, "name": "production"})
 
-        monkeypatch.setattr(httpx, "request", _request)
+        monkeypatch.setattr("yc_plugin.yandex_cloud.rest_client.send_request", _request)
         probe = self._client().probe_access()
 
         assert probe.ok is True

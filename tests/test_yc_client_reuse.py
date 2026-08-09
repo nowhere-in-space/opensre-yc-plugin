@@ -109,6 +109,41 @@ class TestCredentialsAreNotShared:
         assert client_from_params({"iam_token": "t1.token"}) is None
 
 
+class TestTheConnectionPool:
+    """Reads go through one pooled client, so TLS is negotiated once per host."""
+
+    def test_every_request_uses_the_same_client(self) -> None:
+        from yc_plugin.yandex_cloud import rest_client
+
+        rest_client.close_pool()
+        try:
+            first = rest_client._pooled_client()
+            second = rest_client._pooled_client()
+
+            assert first is second
+            assert not first.is_closed
+        finally:
+            rest_client.close_pool()
+
+    def test_closing_it_releases_the_connections(self) -> None:
+        from yc_plugin.yandex_cloud import rest_client
+
+        pool = rest_client._pooled_client()
+        rest_client.close_pool()
+
+        assert pool.is_closed
+        assert rest_client._pool is None
+
+    def test_it_comes_back_after_being_closed(self) -> None:
+        from yc_plugin.yandex_cloud import rest_client
+
+        rest_client.close_pool()
+        try:
+            assert not rest_client._pooled_client().is_closed
+        finally:
+            rest_client.close_pool()
+
+
 class TestTheCacheStaysBounded:
     def test_a_rotating_token_does_not_grow_it_without_limit(self) -> None:
         for index in range(_CLIENT_CACHE_SIZE * 3):
