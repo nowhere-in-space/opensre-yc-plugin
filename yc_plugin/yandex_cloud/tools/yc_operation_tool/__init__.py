@@ -16,6 +16,7 @@ from typing import Any
 
 from core.tool_framework.tool_decorator import tool
 from core.tool_framework.utils.tool_availability import tool_unavailable
+from yc_plugin.skills import describe
 from yc_plugin.yandex_cloud.availability import (
     YC_INJECTED_PARAMS,
     client_from_params,
@@ -30,6 +31,16 @@ from yc_plugin.yandex_cloud.rest_client import (
 
 SOURCE = "yandex_cloud"
 
+# Kept out of the list literal below: two adjacent strings inside a list display
+# are indistinguishable from a missing comma, and this text is long enough to
+# need wrapping.
+_WORKLOAD_ANTI_EXAMPLE = (
+    "Reading Kubernetes pods, events or container logs. Those live in the "
+    "cluster's own API server, not in Yandex Cloud's, so no path here returns "
+    "them and searching for one only burns the investigation. Use "
+    "kubernetes_list_pods, kubernetes_get_events and kubernetes_get_pod_logs."
+)
+
 
 def _extract_params(sources: dict[str, dict]) -> dict[str, Any]:
     return yc_credentials(sources)
@@ -40,14 +51,17 @@ def _extract_params(sources: dict[str, dict]) -> dict[str, Any]:
     surfaces=("investigation", "action"),
     display_name="Yandex Cloud",
     source=SOURCE,
-    description=(
+    description=describe(
+        "execute_yc_operation",
         "Read any Yandex Cloud resource through the REST API. Use for services "
         "without a dedicated tool — container registry, DNS, CDN, IAM, KMS, "
         "Lockbox, certificates, YDB, Data Transfer and the rest. Call "
         "list_yc_services first if you are unsure of the service name or path. "
         "Read-only: only list and get endpoints can be reached. When the "
         "investigation calls for a change, report the exact `yc` command for an "
-        "operator to run rather than attempting it."
+        "operator to run rather than attempting it. Reaches Yandex Cloud "
+        "resources only: a Kubernetes pod, event or container log is not one, "
+        "and no path here returns them.",
     ),
     use_cases=[
         "Inspecting a service that has no dedicated tool",
@@ -55,6 +69,7 @@ def _extract_params(sources: dict[str, dict]) -> dict[str, Any]:
         "Fetching one resource by id to check its current state",
         "Following a resource reference found in another tool's output",
     ],
+    anti_examples=[_WORKLOAD_ANTI_EXAMPLE],
     requires=["service", "path"],
     outputs={
         "success": "whether the read succeeded",
