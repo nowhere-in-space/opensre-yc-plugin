@@ -170,13 +170,62 @@ def build(access: ClusterAccess, endpoint: str, token: str) -> str:
     )
 
 
+#: Marks the store record as ours, so a kubeconfig the operator configured
+#: themselves is never overwritten by a later run.
+MANAGED_BY = "opensre-yc"
+
+
+def _publish_to_store(content: str) -> None:
+    """Write the kubeconfig into OpenSRE's integration store.
+
+    The environment variable alone is not enough. OpenSRE reads environment
+    integrations *only when the store is empty*
+    (``platform/harness_ports.py::_resolve_from_local_sources``), so on any
+    machine that has configured a single integration — which is every real
+    one — ``KUBECONFIG_CONTENT`` is ignored and the Kubernetes tools report
+    themselves unavailable in the middle of an investigation.
+
+    Rewritten on every startup because the token inside expires within hours.
+    A record the operator wrote themselves is left alone: theirs may point at a
+    different cluster, and silently redirecting it would be worse than not
+    working.
+    """
+    from integrations.store import load_integrations, upsert_integration
+
+    for record in load_integrations():
+        if record.get("service") != "kubernetes":
+            continue
+        instances = record.get("instances") or []
+        ours = any((instance.get("tags") or {}).get("managed_by") == MANAGED_BY
+                   for instance in instances)
+        if not ours:
+            logger.info(
+                "yandex_cloud kubernetes: leaving the existing kubernetes record alone"
+            )
+            return
+        break
+
+    upsert_integration(
+        "kubernetes",
+        {
+            "instances": [
+                {
+                    "name": "default",
+                    "tags": {"managed_by": MANAGED_BY},
+                    "credentials": {"kubeconfig": content, "namespace": "default"},
+                }
+            ]
+        },
+    )
+
+
 def configure(settings: dict[str, Any], token: str, *, on_instance: bool) -> bool:
     """Publish a kubeconfig for the configured cluster; return whether one was set.
 
     Called during ``install()``. A cluster that cannot be reached, or a
-    credential that could not be minted, leaves the environment untouched and
-    says why — an empty ``KUBECONFIG_CONTENT`` would make OpenSRE report the
-    kubernetes integration as configured and then fail on every call.
+    credential that could not be minted, leaves everything untouched and says
+    why — a half-written configuration would make OpenSRE report the kubernetes
+    integration as ready and then fail on every call.
     """
     if not settings.get("enabled"):
         return False
@@ -198,7 +247,15 @@ def configure(settings: dict[str, Any], token: str, *, on_instance: bool) -> boo
         logger.warning("yandex_cloud kubernetes not configured: no IAM token available")
         return False
 
-    os.environ[KUBECONFIG_CONTENT_ENV] = build(access, endpoint, token)
+    content = build(access, endpoint, token)
+    os.environ[KUBECONFIG_CONTENT_ENV] = content
+    try:
+        _publish_to_store(content)
+    except Exception:
+        # The environment variable still covers a machine with an empty store,
+        # so a store that cannot be written is a degradation rather than a stop.
+        logger.warning("yandex_cloud kubernetes: could not write the store", exc_info=True)
+
     logger.info(
         "yandex_cloud kubernetes configured: cluster %s via %s",
         access.name or access.cluster_id,

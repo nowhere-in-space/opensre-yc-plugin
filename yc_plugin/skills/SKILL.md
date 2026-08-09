@@ -13,8 +13,16 @@ tools:
 
 # yandex-cloud
 
-Two rules first, because they are the ones that waste a whole investigation
+Three rules first, because they are the ones that waste a whole investigation
 when they are missed.
+
+**Read `kubernetes_get_events` before naming a cause** for any pod that is not
+Running. The pod list shows only *that* it is stuck. Every reason looks
+identical there — out of memory, unschedulable, an image that will not pull, a
+volume that will not mount. The event carries the actual message, and guessing
+between them produces a confident wrong answer that sends someone to check node
+capacity when the registry was refusing the pull. `Pending` with no events about
+resources is an image or volume problem, not a scheduling one.
 
 **A pod is not a Yandex Cloud resource.** The Yandex Cloud API knows the
 Kubernetes *cluster* — version, health, node groups, read with
