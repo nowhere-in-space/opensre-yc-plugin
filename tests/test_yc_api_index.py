@@ -1,0 +1,185 @@
+"""The agent must be able to reach any readable Yandex Cloud endpoint.
+
+Only a handful of the API's ~900 read endpoints get a purpose-built tool. The
+rest are reached by looking the path up in an index generated from Yandex's own
+protobuf definitions and passing it to the generic reader — never by guessing a
+path, and never by shelling out to the `yc` CLI, which is not installed and
+authenticates separately.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from tools.registry import get_registered_tool_map
+from yc_plugin.yandex_cloud.api_index import (
+    _INDEX_FILE,
+    endpoint_count,
+    known_services,
+    search,
+)
+from yc_plugin.yandex_cloud.endpoints import resolve_endpoint
+
+
+class TestTheIndexIsUsable:
+    def test_it_covers_the_whole_api_not_a_handful_of_services(self) -> None:
+        assert endpoint_count() > 800
+        assert len(known_services()) > 50
+
+    def test_every_service_resolves_to_a_reachable_host(self) -> None:
+        """An indexed path nothing can be sent to is worse than an absent one."""
+        unreachable = [name for name in known_services() if not resolve_endpoint(name)]
+
+        assert unreachable == []
+
+    def test_it_holds_reads_only(self) -> None:
+        """The client refuses anything but GET, so a write path could only mislead."""
+        entries = json.loads(_INDEX_FILE.read_text(encoding="utf-8"))["endpoints"]
+        verbs = {entry["rpc"].rsplit(".", 1)[-1] for entry in entries}
+
+        assert not {"Create", "Update", "Delete", "Start", "Stop"} & verbs
+
+    def test_paths_are_paths_not_urls(self) -> None:
+        entries = json.loads(_INDEX_FILE.read_text(encoding="utf-8"))["endpoints"]
+
+        assert all(entry["path"].startswith("/") for entry in entries)
+        assert not any("://" in entry["path"] for entry in entries)
+
+
+class TestSearchFindsWhatAnOperatorWouldAsk:
+    @pytest.mark.parametrize(
+        ("query", "expected_path"),
+        [
+            ("instances", "/compute/v1/instances"),
+            ("security groups", "/vpc/v1/securityGroups"),
+            ("postgresql clusters", "/managed-postgresql/v1/clusters"),
+            ("kubernetes clusters", "/managed-kubernetes/v1/clusters"),
+            ("certificates", "/certificate-manager/v1/certificates"),
+            ("registries", "/container-registry/v1/registries"),
+            ("dns zones", "/dns/v1/zones"),
+            ("secrets", "/lockbox/v1/secrets"),
+        ],
+    )
+    def test_plain_words_reach_the_right_endpoint(self, query: str, expected_path: str) -> None:
+        assert expected_path in [match.path for match in search(query)]
+
+    @pytest.mark.parametrize(
+        ("query", "expected_service"),
+        [
+            ("instances", "compute"),
+            ("vm", "compute"),
+            ("k8s nodes", "managed-kubernetes"),
+            ("postgres clusters", "managed-postgresql"),
+            ("logs", "logging"),
+            ("certs", "certificate-manager"),
+        ],
+    )
+    def test_the_first_hit_is_the_one_worth_calling(
+        self, query: str, expected_service: str
+    ) -> None:
+        """Several services own a resource called `instances`; the obvious one must win."""
+        assert search(query)[0].service == expected_service
+
+    def test_shorthand_an_operator_would_type_still_finds_it(self) -> None:
+        """ "k8s" and "vm" appear nowhere in the API — without aliases they read as
+        "Yandex Cloud cannot do that"."""
+        assert search("k8s clusters")
+        assert search("vms")
+
+    def test_a_term_does_not_match_the_middle_of_another_word(self) -> None:
+        """Substring matching sent `logs` to /v1/catalogs, which is not a log at all."""
+        assert all("catalog" not in match.path.lower() for match in search("logs"))
+
+    def test_collections_rank_above_single_resource_reads(self) -> None:
+        """An agent with no id yet needs the list endpoint, not the get-by-id one."""
+        first = search("compute instances")[0]
+
+        assert "{" not in first.path
+
+    def test_a_service_filter_narrows_a_shared_word(self) -> None:
+        matches = search("clusters", service="managed-clickhouse")
+
+        assert matches
+        assert {match.service for match in matches} == {"managed-clickhouse"}
+
+
+class TestTheToolAnswers:
+    def test_it_returns_paths_ready_for_the_generic_reader(self) -> None:
+        result = get_registered_tool_map()["find_yc_api"].run(query="security groups", limit=2)
+
+        assert result["count"] > 0
+        first = result["endpoints"][0]
+        assert first["service"] and first["path"].startswith("/")
+
+    def test_no_query_lists_the_services_instead_of_failing(self) -> None:
+        """ "What can you see?" is a real question, and it has an answer."""
+        result = get_registered_tool_map()["find_yc_api"].run()
+
+        assert len(result["services"]) > 50
+        assert result["count"] == 0
+
+    def test_an_unmatched_search_says_so_without_inventing_a_path(self) -> None:
+        result = get_registered_tool_map()["find_yc_api"].run(query="zzzz-not-a-resource")
+
+        assert result["endpoints"] == []
+        assert "note" in result
+
+
+class TestParametersComeWithThePath:
+    """A path alone is half an answer: the cluster-logs endpoint answers
+    "unknown service type" until serviceType is passed, and the path says nothing."""
+
+    def test_the_cluster_logs_endpoint_carries_its_service_type(self) -> None:
+        match = next(
+            endpoint for endpoint in search("postgresql logs") if endpoint.path.endswith(":logs")
+        )
+        params = {param["name"]: param for param in match.params}
+
+        assert "serviceType" in params
+        assert "POSTGRESQL" in params["serviceType"]["values"]
+
+    def test_the_tool_hands_them_to_the_caller(self) -> None:
+        result = get_registered_tool_map()["find_yc_api"].run(query="postgresql logs", limit=1)
+
+        assert result["endpoints"][0]["params"]
+
+    def test_paging_is_not_repeated_per_endpoint(self) -> None:
+        """pageSize/pageToken are uniform across the API; listing them is noise."""
+        names = {param["name"] for endpoint in search("clusters") for param in endpoint.params}
+
+        assert "pageSize" not in names
+        assert "pageToken" not in names
+
+
+class TestTheShellCanUseThem:
+    """The interactive shell only sees the action surface; investigation-only tools
+    leave it shelling out to a `yc` binary that is not there."""
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "find_yc_api",
+            "execute_yc_operation",
+            "query_yc_metrics",
+            "list_yc_metrics",
+            "read_yc_logs",
+            "list_yc_log_groups",
+            "read_yc_audit_events",
+        ],
+    )
+    def test_it_is_on_the_action_surface(self, name: str) -> None:
+        assert "action" in get_registered_tool_map()[name].surfaces
+
+    def test_metrics_and_logs_are_there_because_the_generic_reader_cannot_reach_them(
+        self,
+    ) -> None:
+        """Monitoring reads over POST and logs over gRPC, so GET cannot substitute."""
+        tools = get_registered_tool_map()
+
+        for name in ("query_yc_metrics", "read_yc_logs"):
+            assert "action" in tools[name].surfaces
+        # Plain GET resources stay off the action surface: execute_yc_operation covers them.
+        assert "action" not in tools["list_yc_instances"].surfaces
