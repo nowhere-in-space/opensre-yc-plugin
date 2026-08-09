@@ -151,6 +151,19 @@ class TestTheRegistrationSurvivesStartup:
 
         assert routing_for_alert_source("yandex_monitoring") is not None
 
+    def test_installing_twice_does_not_wrap_twice(self) -> None:
+        """A second install must not stack another wrapper on the first."""
+        import integrations.harness_adapters as harness_adapters
+
+        import yc_plugin
+
+        assert yc_plugin._alerts_kept_through_reinstall is True
+        before = harness_adapters.register_harness_adapters
+
+        yc_plugin._keep_alerts_through_adapter_reinstall()
+
+        assert harness_adapters.register_harness_adapters is before
+
     def test_repeated_rebuilds_stay_stable(self) -> None:
         """``install_runtime()`` is documented as safe to call more than once."""
         import integrations.harness_adapters as harness_adapters

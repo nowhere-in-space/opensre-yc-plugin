@@ -288,3 +288,18 @@ class TestEnvironmentConfiguration:
 
         assert credentials["use_metadata"] is False
         assert credentials["folder_id"] == ""
+
+    def test_the_environment_overrides_the_saved_file_field_by_field(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+    ) -> None:
+        """The README promises this: one value replaced without rewriting the file."""
+        config_dir = tmp_path / "cfg"
+        monkeypatch.setattr(plugin_config, "CONFIG_DIR", config_dir)
+        monkeypatch.setattr(plugin_config, "CONFIG_PATH", config_dir / "config.json")
+        plugin_config.save({"auth": "iam", "folder_id": "b1gsaved", "iam_token": "t1.saved"})
+        monkeypatch.setenv("YC_FOLDER_ID", "b1gfromenv")
+
+        credentials = plugin_config.resolved_credentials()
+
+        assert credentials["folder_id"] == "b1gfromenv"
+        assert credentials["iam_token"] == "t1.saved"
