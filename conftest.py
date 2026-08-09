@@ -84,6 +84,20 @@ def _cold_client_cache() -> None:
     reset_client_cache()
 
 
+@pytest.fixture(autouse=True)
+def _off_an_instance(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Answer "not running in Yandex Cloud" without asking the network.
+
+    The metadata service lives on a link-local address that does not answer
+    anywhere else, so the honest answer costs a full timeout to obtain. A test
+    that wants the other answer overrides this.
+    """
+    from yc_plugin import metadata
+
+    metadata.forget_availability()
+    monkeypatch.setattr(metadata, "is_available", lambda: False)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _installed_plugin() -> None:
     """Register the plugin once, the way a host application would at startup.

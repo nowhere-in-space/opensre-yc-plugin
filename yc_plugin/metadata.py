@@ -13,6 +13,7 @@ answer, and the short timeout means asking costs nothing.
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
 from typing import Any, Final, NamedTuple
 
 import httpx
@@ -93,9 +94,21 @@ def fetch_instance_id() -> str | None:
     return _fetch(_INSTANCE_ID_PATH)
 
 
+@lru_cache(maxsize=1)
 def is_available() -> bool:
-    """Return whether the metadata service answers, i.e. we run inside the cloud."""
+    """Return whether the metadata service answers, i.e. we run inside the cloud.
+
+    Cached for the life of the process: a program does not move in or out of
+    Yandex Cloud while it runs. Without the cache each call costs the full
+    timeout wherever the answer is no, and the answer is consulted on every
+    startup and on each pass through the setup wizard.
+    """
     return fetch_folder_id() is not None
+
+
+def forget_availability() -> None:
+    """Drop the cached answer, so a test can pretend to be somewhere else."""
+    is_available.cache_clear()
 
 
 __all__ = [
@@ -107,5 +120,6 @@ __all__ = [
     "fetch_folder_id",
     "fetch_instance_id",
     "fetch_token",
+    "forget_availability",
     "is_available",
 ]
