@@ -55,6 +55,10 @@ THE_RULE = "A pod is not a Yandex Cloud resource"
 #: them, and the control-plane pair is what gives the split a landing point.
 ESSENTIALS = (
     THE_RULE,
+    # A pod list cannot tell an unschedulable pod from one whose image will not
+    # pull. The agent reported the first while the events said the second, so
+    # this sentence is load-bearing.
+    "before naming a cause",
     "kubernetes_list_pods",
     "kubernetes_get_events",
     "kubernetes_get_pod_logs",
