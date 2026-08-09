@@ -47,6 +47,29 @@ class TestTheSkillIsActuallyLoaded:
         assert skills.describe("list_yc_instances", "Base.") == "Base."
 
 
+#: The sentence the whole fix rests on.
+THE_RULE = "A pod is not a Yandex Cloud resource"
+
+#: Slack the rule must keep above the cut, in characters. The formatted guidance
+#: embeds the absolute path of SKILL.md, so how much of the document survives
+#: depends on where the plugin happens to be installed. CI's path is some forty
+#: characters longer than a typical checkout, and that difference alone was once
+#: enough to push the rule past the cut — passing locally, failing there.
+PATH_HEADROOM = 600
+
+
+def _formatted_untruncated() -> str:
+    """Return the guidance as the registry formats it, before any truncation."""
+    from core.tool_framework.skill_guidance import (
+        format_tool_skill_guidance,
+        load_tool_skill_guidance,
+    )
+
+    result = load_tool_skill_guidance(skills.SKILL_FILE)
+    assert result.skill is not None
+    return format_tool_skill_guidance(result.skill)
+
+
 class TestTheKubernetesRoutingSurvivesTheLengthCap:
     """It did not, the first time — the section was written past the cut.
 
@@ -63,7 +86,15 @@ class TestTheKubernetesRoutingSurvivesTheLengthCap:
     def test_the_rule_itself_is_still_there(self) -> None:
         _, text = skills._loaded()
 
-        assert "A pod is not a Yandex Cloud resource" in text
+        assert THE_RULE in text
+
+    def test_it_sits_far_enough_above_the_cut_to_stay_there(self) -> None:
+        """Surviving on this machine is not the same as surviving anywhere."""
+        text = _formatted_untruncated()
+
+        end_of_rule = text.index(THE_RULE) + len(THE_RULE)
+
+        assert end_of_rule < skills.MAX_GUIDANCE_CHARS - PATH_HEADROOM
 
     @pytest.mark.parametrize(
         "tool_name",

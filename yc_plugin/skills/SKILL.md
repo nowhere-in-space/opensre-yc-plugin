@@ -13,12 +13,25 @@ tools:
 
 # yandex-cloud
 
-Everything reaches Yandex Cloud over its REST API with the configured
-credential. There is no CLI step and no shell step.
+Two rules first, because they are the ones that waste a whole investigation
+when they are missed.
+
+**A pod is not a Yandex Cloud resource.** The Yandex Cloud API knows the
+Kubernetes *cluster* — version, health, node groups — and nothing about what
+runs inside it. Neither `execute_yc_operation` nor `find_yc_api` can reach a
+pod, an event or a container log, and no `/managed-kubernetes/` path returns
+one. Read those with `kubernetes_list_pods`, `kubernetes_get_events`,
+`kubernetes_get_pod_logs` and `kubernetes_list_nodes`, which talk to the
+cluster's own API server. If those tools are absent, Managed Kubernetes access
+was not connected during setup — say so rather than trying the Yandex Cloud API
+instead.
 
 **Never run `yc` via a shell tool.** It is normally not installed, it needs its
 own separate authentication, and it can mutate. If you catch yourself writing
 `yc ...` to answer a question, use `execute_yc_operation` instead.
+
+Everything else reaches Yandex Cloud over its REST API with the configured
+credential. There is no CLI step and no shell step.
 
 ## What a connected `yandex_cloud` means
 
@@ -44,13 +57,6 @@ tell the user a piece of it "is not configured":
 Monitoring and logging are configured whenever Yandex Cloud is configured. They
 share one credential; there is no separate setup to ask the user for.
 
-**A pod is not a Yandex Cloud resource.** The Yandex Cloud API knows the cluster
-— version, health, node groups — and nothing about what runs inside it. Neither
-`execute_yc_operation` nor `find_yc_api` can reach a pod, an event or a
-container log, and no `/managed-kubernetes/` path returns one. Those come from
-the `kubernetes_*` tools, which talk to the cluster's own API server. When they
-are absent, Managed Kubernetes access was not connected during setup — say so
-rather than trying the Yandex Cloud API instead.
 
 ## Reading anything
 
