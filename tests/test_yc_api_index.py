@@ -10,6 +10,7 @@ authenticates separately.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,7 @@ from yc_plugin.yandex_cloud.api_index import (
     _INDEX_FILE,
     endpoint_count,
     known_services,
+    provenance,
     search,
 )
 from yc_plugin.yandex_cloud.endpoints import resolve_endpoint
@@ -47,6 +49,59 @@ class TestTheIndexIsUsable:
 
         assert all(entry["path"].startswith("/") for entry in entries)
         assert not any("://" in entry["path"] for entry in entries)
+
+
+class TestTheIndexSaysWhereItCameFrom:
+    """Generated data with no provenance cannot be told apart from stale data.
+
+    Nothing about a list of endpoints reveals its age, so the file records the
+    cloudapi commit it was built from. Without that, the only way to know
+    whether a missing service is genuinely missing or merely not regenerated
+    yet is to rebuild and diff.
+    """
+
+    def test_it_names_the_repository_it_was_generated_from(self) -> None:
+        assert provenance()["source"] == "https://github.com/yandex-cloud/cloudapi"
+
+    def test_it_pins_the_exact_commit(self) -> None:
+        commit = provenance()["commit"]
+
+        assert len(commit) == 40
+        assert all(character in "0123456789abcdef" for character in commit)
+
+    def test_it_carries_both_dates(self) -> None:
+        """When cloudapi was last changed, and when the index was built from it."""
+        recorded = provenance()
+
+        for key in ("commit_date", "generated"):
+            assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", recorded[key]), key
+
+    def test_the_endpoints_are_not_mistaken_for_provenance(self) -> None:
+        assert "endpoints" not in provenance()
+
+
+class TestEveryEntryHasTheShapeTheReaderExpects:
+    def test_the_required_fields_are_present_and_filled(self) -> None:
+        entries = json.loads(_INDEX_FILE.read_text(encoding="utf-8"))["endpoints"]
+
+        assert entries
+        for entry in entries:
+            for field in ("service", "path", "rpc", "package"):
+                assert entry.get(field), f"{field} missing in {entry}"
+
+    def test_declared_parameters_are_named(self) -> None:
+        """A parameter without a name tells the agent nothing it can act on."""
+        entries = json.loads(_INDEX_FILE.read_text(encoding="utf-8"))["endpoints"]
+
+        for entry in entries:
+            for param in entry.get("params", ()):
+                assert param.get("name"), f"unnamed parameter in {entry['path']}"
+
+    def test_no_endpoint_is_listed_twice_for_one_service(self) -> None:
+        entries = json.loads(_INDEX_FILE.read_text(encoding="utf-8"))["endpoints"]
+        keys = [(entry["service"], entry["path"]) for entry in entries]
+
+        assert len(keys) == len(set(keys))
 
 
 class TestSearchFindsWhatAnOperatorWouldAsk:

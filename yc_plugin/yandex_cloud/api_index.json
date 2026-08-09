@@ -1,5 +1,8 @@
 {
  "source": "https://github.com/yandex-cloud/cloudapi",
+ "generated": "2026-08-09",
+ "commit": "2d480830ab8997a6c1a4fe62df1b0f9e05e69fa9",
+ "commit_date": "2026-08-06",
  "endpoints": [
   {
    "service": "ai-assistants",
@@ -7870,6 +7873,37 @@
    "rpc": "TriggerService.ListOperations",
    "resource": "operations",
    "package": "yandex.cloud.serverless.triggers.v1",
+   "params": [
+    {
+     "name": "filter"
+    }
+   ]
+  },
+  {
+   "service": "serverless-triggers",
+   "path": "/triggers/v2/triggers",
+   "rpc": "TriggerService.List",
+   "resource": "triggers",
+   "package": "yandex.cloud.serverless.triggers.v2",
+   "params": [
+    {
+     "name": "filter"
+    }
+   ]
+  },
+  {
+   "service": "serverless-triggers",
+   "path": "/triggers/v2/triggers/{trigger_id}",
+   "rpc": "TriggerService.Get",
+   "resource": "triggers",
+   "package": "yandex.cloud.serverless.triggers.v2"
+  },
+  {
+   "service": "serverless-triggers",
+   "path": "/triggers/v2/triggers/{trigger_id}/operations",
+   "rpc": "TriggerService.ListOperations",
+   "resource": "operations",
+   "package": "yandex.cloud.serverless.triggers.v2",
    "params": [
     {
      "name": "filter"
