@@ -36,51 +36,182 @@ def _choose(label: str, options: list[tuple[str, str]], default_index: int = 0) 
         print("Enter a number from the list.")
 
 
+#: Authentication methods, in the order they are offered.
+_AUTH_CHOICES: list[tuple[str, str]] = [
+    ("metadata", "Instance service account (running on a Yandex Cloud VM)"),
+    ("sa_key_file", "Service-account key file"),
+    ("sa_key", "Service-account key, pasted"),
+    ("oauth", "OAuth token"),
+    ("iam", "IAM token (short-lived)"),
+]
+
+_YES_NO: list[tuple[str, str]] = [("yes", "Yes"), ("no", "No")]
+
+DEFAULT_MODEL = "gpt-oss-120b"
+
+
+def _index_of(options: list[tuple[str, str]], value: Any, fallback: int = 0) -> int:
+    """Return where *value* sits among *options*, so a re-run starts where it left off."""
+    keys = [key for key, _ in options]
+    return keys.index(value) if value in keys else fallback
+
+
+def _yes_no_default(previous: dict[str, Any] | None) -> int:
+    """Default a yes/no question to what was chosen last time."""
+    return 0 if previous else 1
+
+
 def configure(_args: list[str]) -> int:
     """Interactive setup. Writes the config file and reports where it went."""
     print("Yandex Cloud plugin setup\n")
 
+    # Re-running is a fresh configuration, but every question starts from the
+    # previous answer — otherwise changing one setting means retyping a
+    # service-account key.
+    previous = config.load()
+
     auth = _choose(
         "How should the plugin authenticate?",
-        [
-            ("metadata", "Instance service account (running on a Yandex Cloud VM)"),
-            ("sa_key_file", "Service-account key file"),
-            ("sa_key", "Service-account key, pasted"),
-            ("oauth", "OAuth token"),
-            ("iam", "IAM token (short-lived)"),
-        ],
+        _AUTH_CHOICES,
+        default_index=_index_of(_AUTH_CHOICES, previous.get("auth")),
     )
 
     saved: dict[str, Any] = {"auth": auth}
 
     if auth == "metadata":
         saved["folder_id"] = _prompt(
-            "Folder ID (blank to read it from the instance metadata)", ""
+            "Folder ID (blank to read it from the instance metadata)",
+            str(previous.get("folder_id", "")),
         )
     else:
-        saved["folder_id"] = _prompt("Folder ID")
-        saved["cloud_id"] = _prompt("Cloud ID (optional)")
+        saved["folder_id"] = _prompt("Folder ID", str(previous.get("folder_id", "")))
+        saved["cloud_id"] = _prompt("Cloud ID (optional)", str(previous.get("cloud_id", "")))
 
     if auth == "sa_key_file":
-        saved["sa_key_file"] = _prompt("Path to the authorized key JSON")
+        saved["sa_key_file"] = _prompt(
+            "Path to the authorized key JSON", str(previous.get("sa_key_file", ""))
+        )
     elif auth == "sa_key":
-        saved["sa_key"] = _prompt("Authorized key JSON", secret=True)
+        saved["sa_key"] = _secret("Authorized key JSON", previous.get("sa_key", ""))
     elif auth == "oauth":
-        saved["oauth_token"] = _prompt("OAuth token", secret=True)
+        saved["oauth_token"] = _secret("OAuth token", previous.get("oauth_token", ""))
     elif auth == "iam":
-        saved["iam_token"] = _prompt("IAM token", secret=True)
+        saved["iam_token"] = _secret("IAM token", previous.get("iam_token", ""))
 
-    if _choose(
-        "Also run OpenSRE's language model on Yandex AI Studio?",
-        [("yes", "Yes"), ("no", "No")],
-    ) == "yes":
-        model = _prompt("Model", "gpt-oss-120b")
+    previous_llm = previous.get("llm") if isinstance(previous.get("llm"), dict) else None
+    if (
+        _choose(
+            "Also run OpenSRE's language model on Yandex AI Studio?",
+            _YES_NO,
+            default_index=_yes_no_default(previous_llm),
+        )
+        == "yes"
+    ):
+        model = _prompt("Model", str((previous_llm or {}).get("model") or DEFAULT_MODEL))
         saved["llm"] = {"enabled": True, "model": model}
+
+    kubernetes = _kubernetes_step(saved, previous)
+    if kubernetes:
+        saved["kubernetes"] = kubernetes
 
     path = config.save(saved)
     print(f"\nSaved to {path}")
     print("Run investigations with:  opensre-yc run investigate -i <alert.json>")
     return 0
+
+
+def _secret(label: str, previous: Any) -> str:
+    """Prompt for a secret, keeping the stored one when the answer is blank."""
+    stored = str(previous or "")
+    suffix = " (blank to keep the saved one)" if stored else ""
+    return _prompt(f"{label}{suffix}", stored, secret=True)
+
+
+def _kubernetes_step(answers: dict[str, Any], previous: dict[str, Any]) -> dict[str, Any] | None:
+    """Offer to connect a Managed Kubernetes cluster, returning what to save.
+
+    Nothing is registered here: OpenSRE's own ``kubernetes`` integration reads
+    workloads, and it only needs a kubeconfig, which the plugin assembles at
+    startup from what is saved now.
+    """
+    previous_k8s = (
+        previous.get("kubernetes") if isinstance(previous.get("kubernetes"), dict) else None
+    )
+    if (
+        _choose(
+            "Read workloads from a Managed Kubernetes cluster?",
+            _YES_NO,
+            default_index=_yes_no_default(previous_k8s),
+        )
+        != "yes"
+    ):
+        return None
+
+    clusters = _list_clusters(answers)
+    if clusters is None:
+        return None
+
+    options = [
+        (access.cluster_id, f"{access.name} ({access.status or 'unknown'})")
+        for access in clusters
+    ]
+    chosen_id = _choose(
+        "Which cluster?",
+        options,
+        default_index=_index_of(options, (previous_k8s or {}).get("cluster_id")),
+    )
+    chosen = next(access for access in clusters if access.cluster_id == chosen_id)
+
+    _report_reachability(chosen)
+    return {"enabled": True, **chosen.as_config()}
+
+
+def _list_clusters(answers: dict[str, Any]) -> list[Any] | None:
+    """Return the folder's clusters, or None with an explanation printed."""
+    from yc_plugin.yandex_cloud.availability import client_from_params
+    from yc_plugin.yc_mk8s import kubeconfig
+
+    client = client_from_params(_credentials_from(answers))
+    if client is None:
+        print("  Cannot list clusters: the credentials entered are not usable yet.")
+        return None
+
+    try:
+        clusters = kubeconfig.list_clusters(client)
+    except Exception as exc:  # noqa: BLE001 - the reason is shown, not raised
+        print(f"  Cannot list clusters: {exc}")
+        return None
+
+    if not clusters:
+        print("  No Managed Kubernetes clusters in this folder.")
+        return None
+    return clusters
+
+
+def _credentials_from(answers: dict[str, Any]) -> dict[str, Any]:
+    """Turn the answers given so far into the shape the REST client expects."""
+    return {
+        "folder_id": answers.get("folder_id", ""),
+        "cloud_id": answers.get("cloud_id", ""),
+        "sa_key_file": answers.get("sa_key_file", ""),
+        "sa_key": answers.get("sa_key", ""),
+        "oauth_token": answers.get("oauth_token", ""),
+        "iam_token": answers.get("iam_token", ""),
+        "use_metadata": answers.get("auth") == "metadata",
+    }
+
+
+def _report_reachability(access: Any) -> None:
+    """Say up front when the cluster will not be reachable from where this runs."""
+    from yc_plugin import metadata
+    from yc_plugin.yc_mk8s import kubeconfig
+
+    on_instance = metadata.is_available()
+    endpoint = kubeconfig.choose_endpoint(access, on_instance=on_instance)
+    if endpoint:
+        print(f"  Will connect to {endpoint}")
+        return
+    print(f"  {kubeconfig.unreachable_reason(access, on_instance=on_instance)}")
 
 
 def run(args: list[str]) -> int:

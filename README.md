@@ -97,6 +97,64 @@ On a Yandex Cloud VM the bearer token is minted from the instance metadata
 service automatically, so there is nothing to store or rotate. The full setup,
 model list, and trade-offs are in [docs/yandex-ai-studio.md](docs/yandex-ai-studio.md).
 
+## Managed Kubernetes
+
+Workloads — pods, events, pod logs, deployments, nodes — are read by OpenSRE's
+own `kubernetes` tools. The plugin adds no tools of its own for this; it builds
+a kubeconfig for the cluster you pick and hands it over. Enable it during
+`opensre-yc configure` and choose a cluster from the list.
+
+The service account needs read access **inside** the cluster, which is separate
+from its folder role:
+
+```
+yc resource-manager folder add-access-binding <folder-id> \
+  --role k8s.cluster-api.viewer \
+  --service-account-id <service-account-id>
+```
+
+That covers pods, events, logs, deployments and services. It does **not** cover
+nodes: the Kubernetes `view` role it maps to leaves cluster-scoped resources
+out. To read nodes as well, apply this once in the cluster:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: opensre-node-reader
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: opensre-node-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: opensre-node-reader
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: yc:viewer
+```
+
+`k8s.cluster-api.cluster-admin` would also make nodes readable, and is worth
+avoiding: it puts a credential that can delete anything in the cluster into the
+agent's environment, for the sake of a read the narrow role above already
+covers.
+
+**Reachability.** On a Yandex Cloud VM the plugin uses the cluster's internal
+address; anywhere else, its public one. A cluster whose master has no public
+endpoint cannot be reached from outside the network at all — setup says so
+rather than leaving you with a timeout later.
+
+**Token lifetime.** The kubeconfig is built at startup with a freshly minted IAM
+token and is never written to disk. A process that outlives the token starts
+getting `401` from the cluster and has to be restarted.
+
 ## Alerts
 
 Yandex Monitoring has no plain webhook. Notifications go to a Cloud Function,
