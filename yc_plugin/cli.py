@@ -215,16 +215,25 @@ def _report_reachability(access: Any) -> None:
 
 
 def run(args: list[str]) -> int:
-    """Install the plugin, then delegate to the OpenSRE CLI."""
-    import yc_plugin
+    """Install the plugin, then delegate to the OpenSRE CLI.
 
-    yc_plugin.install()
-
+    OpenSRE is imported first, and the order is not incidental. It ships a
+    top-level ``platform`` package that shadows the standard library module of
+    the same name, and an editable install only puts its directory on the path
+    once one of its own modules is imported. Installing the plugin first means
+    the plugin's imports reach OpenSRE before that has happened, ``platform``
+    binds to the standard library, and every import beneath it fails — which
+    made ``opensre-yc run`` work only from inside the OpenSRE checkout.
+    """
     try:
         from surfaces.cli.app import main as opensre_main
     except ImportError:
         print("OpenSRE is not importable from here. Install it in the same environment.")
         return 1
+
+    import yc_plugin
+
+    yc_plugin.install()
 
     sys.argv = ["opensre", *args]
     return int(opensre_main() or 0)
