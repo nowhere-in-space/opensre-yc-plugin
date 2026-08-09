@@ -15,6 +15,10 @@ opensre-yc = "yc_plugin.cli:main"
 [project.optional-dependencies]
 # Reading Cloud Logging entries is gRPC-only; kept optional like the fork does.
 logs = ["yandexcloud"]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.setuptools.packages.find]
 include = ["yc_plugin*"]

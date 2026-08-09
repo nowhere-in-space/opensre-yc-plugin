@@ -11,8 +11,11 @@ dict, so availability accepts either real credentials or a backend.
 
 from __future__ import annotations
 
+import hashlib
+import threading
+from collections import OrderedDict
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Final
 
 from yc_plugin.yandex_cloud.config_model import YandexCloudIntegrationConfig
 from yc_plugin.yandex_cloud.rest_client import YandexCloudClient
@@ -101,10 +104,66 @@ def config_from_params(params: Mapping[str, Any]) -> YandexCloudIntegrationConfi
         return None
 
 
+#: Clients kept per credential set. Small on purpose: an investigation uses one
+#: credential set, and the extra slots only cover a token rotating mid-run.
+_CLIENT_CACHE_SIZE: Final = 8
+
+_client_cache: OrderedDict[str, YandexCloudClient] = OrderedDict()
+_client_cache_lock = threading.Lock()
+
+
+def _credential_fingerprint(config: YandexCloudIntegrationConfig) -> str:
+    """Identify the credential set a client is bound to.
+
+    Hashed rather than kept verbatim, so a service-account key never becomes a
+    dictionary key that a debugger, a crash dump or a stray repr could surface.
+    """
+    material = "\x00".join(
+        str(value)
+        for value in (
+            config.folder_id,
+            config.cloud_id,
+            config.sa_key_file,
+            config.sa_key,
+            config.oauth_token,
+            config.iam_token,
+            config.use_metadata,
+        )
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
 def client_from_params(params: Mapping[str, Any]) -> YandexCloudClient | None:
-    """Build a REST client from injected credentials, or None when unusable."""
+    """Return a REST client for the injected credentials, or None when unusable.
+
+    Clients are reused across tool calls. A client owns the IAM token cache, and
+    every tool builds its client from the credentials injected into that one
+    call, so a fresh instance per call meant the cache never lived long enough
+    to be read: an investigation minted a token — and on a VM, made a metadata
+    round-trip for it — once per tool call rather than once per run.
+    """
     config = config_from_params(params)
-    return None if config is None else YandexCloudClient(config)
+    if config is None:
+        return None
+
+    key = _credential_fingerprint(config)
+    with _client_cache_lock:
+        cached = _client_cache.get(key)
+        if cached is not None:
+            _client_cache.move_to_end(key)
+            return cached
+
+        client = YandexCloudClient(config)
+        _client_cache[key] = client
+        if len(_client_cache) > _CLIENT_CACHE_SIZE:
+            _client_cache.popitem(last=False)
+        return client
+
+
+def reset_client_cache() -> None:
+    """Drop every cached client, so a test starts from a cold token cache."""
+    with _client_cache_lock:
+        _client_cache.clear()
 
 
 __all__ = [
@@ -112,6 +171,7 @@ __all__ = [
     "YC_INJECTED_PARAMS",
     "client_from_params",
     "config_from_params",
+    "reset_client_cache",
     "yc_available_or_backend",
     "yc_credentials",
     "yc_source",

@@ -104,6 +104,25 @@ which forwards the alert to OpenSRE. A ready-to-deploy bridge function is in
 `yc_plugin/yandex_cloud/notification_function/`, with a deploy script and setup
 notes.
 
+## Tests
+
+The suite runs against a source checkout of OpenSRE, because it exercises the
+plugin through OpenSRE's own tool registry and alert routing:
+
+```
+pip install -e ".[dev]"
+OPENSRE_ROOT=/path/to/opensre pytest
+```
+
+`OPENSRE_ROOT` can be omitted if the checkout sits beside this repository. It
+has to be a checkout rather than an installed package: OpenSRE ships a
+top-level `platform` package that shadows the standard library module of the
+same name, so its directory must precede the standard library on `sys.path`,
+which `conftest.py` arranges.
+
+Configuration is redirected to a temporary directory for the run, so the tests
+cannot read or write a real `~/.opensre-yc/config.json`.
+
 ## Compatibility
 
 Built against OpenSRE's public extension points
