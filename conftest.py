@@ -76,6 +76,14 @@ def pytest_configure(config: pytest.Config) -> None:
         )
 
 
+@pytest.fixture(autouse=True)
+def _cold_client_cache() -> None:
+    """Start every test with no cached client, hence a cold IAM token cache."""
+    from yc_plugin.yandex_cloud.availability import reset_client_cache
+
+    reset_client_cache()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _installed_plugin() -> None:
     """Register the plugin once, the way a host application would at startup.
