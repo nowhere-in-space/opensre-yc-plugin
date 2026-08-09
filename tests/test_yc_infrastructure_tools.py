@@ -64,14 +64,25 @@ class TestRegistration:
         assert name in get_registered_tool_map("investigation")
 
     def test_the_family_stays_inside_the_schema_budget(self) -> None:
-        """32 schemas go to the model per turn, shared with every other integration."""
-        from tools.investigation.stages.gather_evidence.tools import MAX_AGENT_TOOL_SCHEMAS
+        """Thirty-two schemas reach the model per turn, shared with everything else.
 
+        The ceiling was half the budget until reading a managed database's own
+        log needed a slot of its own — a whole class of evidence that was
+        otherwise unreachable, since those logs are in neither Cloud Logging nor
+        the generic REST reader.
+
+        Seventeen is now the line, and it is meant to be defended rather than
+        raised again. The pressure is real: connecting a Kubernetes cluster
+        brings twelve more tools from OpenSRE's own integration, and an
+        investigation with both has already been observed dropping six tools it
+        could not fit. An eighteenth should come from merging two existing tools,
+        not from moving this number.
+        """
         yc_tools = [
             name for name in get_registered_tool_map("investigation") if "yc" in name.split("_")
         ]
 
-        assert len(yc_tools) <= MAX_AGENT_TOOL_SCHEMAS // 2
+        assert len(yc_tools) <= 17
 
 
 class TestCompute:

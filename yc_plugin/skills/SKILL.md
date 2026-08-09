@@ -44,7 +44,7 @@ tell the user a piece of it "is not configured":
 | --- | --- |
 | Metrics, CPU, memory, disk, saturation | `query_yc_metrics`, `list_yc_metrics` |
 | Logs (Cloud Logging) | `read_yc_logs`, `list_yc_log_groups` |
-| Logs of a managed database | `find_yc_api`, then `execute_yc_operation` — see below |
+| Logs of a managed database | `read_yc_db_logs` — a separate store, see below |
 | Audit events, who changed what | `read_yc_audit_events` |
 | VMs, disks, images, instance groups | `execute_yc_operation` |
 | Kubernetes **clusters and node groups** | `list_yc_k8s_clusters`, `get_yc_k8s_cluster` |
@@ -61,7 +61,7 @@ share one credential; there is no separate setup to ask the user for.
 
 ## Reading anything
 
-`find_yc_api` indexes ~900 read endpoints across 62 services, generated from
+`find_yc_api` indexes ~940 read endpoints across 68 services, generated from
 Yandex's own protobuf definitions. It is the answer to "what is the path for
 X", so use it rather than guessing:
 
@@ -114,19 +114,32 @@ A pod stuck in `Pending` has no logs at all: the container never started, so the
 API answers `400`, not `403`. Read its events instead — that is where the reason
 is.
 
-## Cloud Logging is not the only place logs live
+## Logs live in four different places
 
-A managed service keeps its own log stream, and it is not in Cloud Logging. An
-empty `read_yc_logs` therefore means "not in Cloud Logging", never "there are no
-logs" — the owning service has its own endpoint:
+There is no single log store, so **an empty `read_yc_logs` is a statement about
+Cloud Logging and nothing else.** Where to look depends on who wrote the log:
 
-    /managed-postgresql/v1/clusters/{cluster_id}:logs
-    /managed-clickhouse/v1/clusters/{cluster_id}:logs
-    /managed-mysql/v1/clusters/{cluster_id}:logs
+| Written by | Read with | Reaches Cloud Logging? |
+| --- | --- | --- |
+| A managed database engine | `read_yc_db_logs` | Only if export was switched on |
+| A container in Kubernetes | `kubernetes_get_pod_logs` | Only if a log agent was deployed |
+| A serverless function or container | `read_yc_logs` | Yes, by default |
+| Your own application, sending to Cloud Logging | `read_yc_logs` | Yes, that is what it is |
 
-and the same shape for the other engines, with a `:stream_logs` variant beside
-each. `find_yc_api` with the engine and `logs` returns them. The rule
-generalises: **before saying something cannot be read, ask `find_yc_api`.**
+So the search order for "why did this break" is: ask the owning service first,
+then Cloud Logging. Doing it the other way round produces a confident "no logs
+found" for a database that has been logging all along.
+
+`read_yc_db_logs` covers every engine. Each keeps several streams and serves one
+at a time, so name it when the question is specific: `MYSQL_SLOW_QUERY` rather
+than the error log MySQL defaults to, `POOLER` rather than `POSTGRESQL` when
+connections are being refused. The result lists the alternatives it did not read.
+
+Export to Cloud Logging is optional and off unless someone enabled it. If a
+managed service has no log group, that is a configuration fact worth reporting —
+not evidence the service is silent.
+
+**Before saying something cannot be read, ask `find_yc_api`.**
 
 Never answer by telling the user to install or run the `yc` CLI. If the CLI can
 read it, so can this agent — the CLI is a client of the same REST API, and the
@@ -144,7 +157,7 @@ Retention differs by source, and an empty result means different things:
 | Source | Kept | An empty result means |
 | --- | --- | --- |
 | Cloud Logging (`read_yc_logs`) | ~31 days | Beyond retention if the date is older — say so, do not call it "no evidence" |
-| Managed-database logs (`:logs`) | per cluster | Try it: it is a separate store from Cloud Logging |
+| Managed-database logs (`read_yc_db_logs`) | per cluster | Try it: it is a separate store from Cloud Logging |
 | Monitoring (`query_yc_metrics`) | months | Genuinely no data for that window, if the window was right |
 
 So for an incident weeks back, metrics are usually the only surviving evidence,

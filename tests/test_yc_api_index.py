@@ -28,8 +28,8 @@ from yc_plugin.yandex_cloud.endpoints import resolve_endpoint
 
 class TestTheIndexIsUsable:
     def test_it_covers_the_whole_api_not_a_handful_of_services(self) -> None:
-        assert endpoint_count() > 800
-        assert len(known_services()) > 50
+        assert endpoint_count() > 900
+        assert len(known_services()) > 65
 
     def test_every_service_resolves_to_a_reachable_host(self) -> None:
         """An indexed path nothing can be sent to is worse than an absent one."""
@@ -78,6 +78,47 @@ class TestTheIndexSaysWhereItCameFrom:
 
     def test_the_endpoints_are_not_mistaken_for_provenance(self) -> None:
         assert "endpoints" not in provenance()
+
+
+class TestServicesTheNamingGapUsedToHide:
+    """The generator maps a proto package to an endpoint host by name.
+
+    Where the registry hyphenates and the protos do not, that mapping found
+    nothing and the endpoints were dropped without a word — 34 of them across
+    six services, which looked from the outside like Yandex not offering an API.
+    An explicit alias table covers the cases; these keep it honest.
+    """
+
+    @pytest.mark.parametrize(
+        "service",
+        [
+            "clouddesktops",
+            "smart-web-security",
+            "smart-captcha",
+            "connection-manager",
+            "serverless-mcp-gateway",
+            "managed-ytsaurus",
+        ],
+    )
+    def test_the_service_is_reachable(self, service: str) -> None:
+        assert service in known_services()
+        assert resolve_endpoint(service)
+
+    def test_every_alias_points_at_a_host_that_exists(self) -> None:
+        """A typo in the alias table would silently drop endpoints again."""
+        import sys
+        from pathlib import Path
+
+        scripts = Path(__file__).resolve().parents[1] / "scripts"
+        sys.path.insert(0, str(scripts))
+        try:
+            from build_api_index import _REGISTRY_ALIASES
+        finally:
+            sys.path.remove(str(scripts))
+
+        unresolvable = [name for name in _REGISTRY_ALIASES.values() if not resolve_endpoint(name)]
+
+        assert unresolvable == []
 
 
 class TestEveryEntryHasTheShapeTheReaderExpects:

@@ -53,6 +53,23 @@ def _is_version(segment: str) -> bool:
     return bool(re.fullmatch(r"v\d+\w*", segment))
 
 
+#: Proto package fragment to endpoint-registry name, where the two disagree.
+#:
+#: The registry hyphenates and pluralises to its own taste and the protos do
+#: not, so joining package parts finds nothing for these. They are listed rather
+#: than guessed at: a heuristic that turned ``smartwebsecurity`` into
+#: ``smart-web-security`` would have to know where the words break, and getting
+#: it wrong silently drops endpoints instead of failing.
+_REGISTRY_ALIASES: Final[dict[str, str]] = {
+    "clouddesktop": "clouddesktops",
+    "connectionmanager": "connection-manager",
+    "serverless-mcpgateway": "serverless-mcp-gateway",
+    "smartcaptcha": "smart-captcha",
+    "smartwebsecurity": "smart-web-security",
+    "ytsaurus": "managed-ytsaurus",
+}
+
+
 def _endpoint_key(path: str, package: str) -> str:
     """Resolve which endpoint host serves *path*, or "" when nothing does.
 
@@ -68,9 +85,14 @@ def _endpoint_key(path: str, package: str) -> str:
         return prefix
 
     parts = [p for p in package.split(".") if p not in {"yandex", "cloud"} and not _is_version(p)]
-    for candidate in ("-".join(parts), "-".join(parts[:2]), parts[0] if parts else ""):
+    candidates = ("-".join(parts), "-".join(parts[:2]), parts[0] if parts else "")
+    for candidate in candidates:
         if candidate and resolve_endpoint(candidate):
             return candidate
+    for candidate in candidates:
+        aliased = _REGISTRY_ALIASES.get(candidate, "")
+        if aliased and resolve_endpoint(aliased):
+            return aliased
     return ""
 
 

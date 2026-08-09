@@ -1791,6 +1791,130 @@
    "package": "yandex.cloud.cloudapps.workload.v1"
   },
   {
+   "service": "clouddesktops",
+   "path": "/cloud-desktop/v1/desktopGroups",
+   "rpc": "DesktopGroupService.List",
+   "resource": "desktopGroups",
+   "package": "yandex.cloud.clouddesktop.v1.api",
+   "params": [
+    {
+     "name": "filter"
+    },
+    {
+     "name": "orderBy"
+    }
+   ]
+  },
+  {
+   "service": "clouddesktops",
+   "path": "/cloud-desktop/v1/desktopGroups/{desktop_group_id}",
+   "rpc": "DesktopGroupService.Get",
+   "resource": "desktopGroups",
+   "package": "yandex.cloud.clouddesktop.v1.api"
+  },
+  {
+   "service": "clouddesktops",
+   "path": "/cloud-desktop/v1/desktopGroups/{desktop_group_id}/desktops",
+   "rpc": "DesktopGroupService.ListDesktops",
+   "resource": "desktops",
+   "package": "yandex.cloud.clouddesktop.v1.api",
+   "params": [
+    {
+     "name": "filter"
+    },
+    {
+     "name": "orderBy"
+    }
+   ]
+  },
+  {
+   "service": "clouddesktops",
+   "path": "/cloud-desktop/v1/desktopGroups/{desktop_group_id}/operations",
+   "rpc": "DesktopGroupService.ListOperations",
+   "resource": "operations",
+   "package": "yandex.cloud.clouddesktop.v1.api",
+   "params": [
+    {
+     "name": "filter"
+    }
+   ]
+  },
+  {
+   "service": "clouddesktops",
+   "path": "/cloud-desktop/v1/desktopGroups/{resource_id}:listAccessBindings",
+   "rpc": "DesktopGroupService.ListAccessBindings",
+   "resource": "desktopGroups",
+   "package": "yandex.cloud.clouddesktop.v1.api"
+  },
+  {
+   "service": "clouddesktops",
+   "path": "/cloud-desktop/v1/desktops",
+   "rpc": "DesktopService.List",
+   "resource": "desktops",
+   "package": "yandex.cloud.clouddesktop.v1.api",
+   "params": [
+    {
+     "name": "filter"
+    },
+    {
+     "name": "orderBy"
+    }
+   ]
+  },
+  {
+   "service": "clouddesktops",
+   "path": "/cloud-desktop/v1/desktops/{desktop_id}",
+   "rpc": "DesktopService.Get",
+   "resource": "desktops",
+   "package": "yandex.cloud.clouddesktop.v1.api"
+  },
+  {
+   "service": "clouddesktops",
+   "path": "/cloud-desktop/v1/desktops/{desktop_id}/operations",
+   "rpc": "DesktopService.ListOperations",
+   "resource": "operations",
+   "package": "yandex.cloud.clouddesktop.v1.api",
+   "params": [
+    {
+     "name": "filter"
+    }
+   ]
+  },
+  {
+   "service": "clouddesktops",
+   "path": "/cloud-desktop/v1/desktops/{desktop_id}:getRdpFile",
+   "rpc": "DesktopService.GetRdpFile",
+   "resource": "desktops",
+   "package": "yandex.cloud.clouddesktop.v1.api",
+   "params": [
+    {
+     "name": "user"
+    }
+   ]
+  },
+  {
+   "service": "clouddesktops",
+   "path": "/cloud-desktop/v1/images",
+   "rpc": "DesktopImageService.List",
+   "resource": "images",
+   "package": "yandex.cloud.clouddesktop.v1.api",
+   "params": [
+    {
+     "name": "filter"
+    },
+    {
+     "name": "orderBy"
+    }
+   ]
+  },
+  {
+   "service": "clouddesktops",
+   "path": "/cloud-desktop/v1/images/{image_id}",
+   "rpc": "DesktopImageService.Get",
+   "resource": "images",
+   "package": "yandex.cloud.clouddesktop.v1.api"
+  },
+  {
    "service": "cloudrouter",
    "path": "/cloudrouter/v1/routingInstances",
    "rpc": "RoutingInstanceService.List",
@@ -2439,6 +2563,62 @@
    "rpc": "ZoneService.Get",
    "resource": "zones",
    "package": "yandex.cloud.compute.v1"
+  },
+  {
+   "service": "connection-manager",
+   "path": "/v1/connection/resolveCluster/{connection_id}",
+   "rpc": "ConnectionService.ResolveCluster",
+   "resource": "resolveCluster",
+   "package": "yandex.cloud.connectionmanager.v1"
+  },
+  {
+   "service": "connection-manager",
+   "path": "/v1/connection/{connection_id}",
+   "rpc": "ConnectionService.Get",
+   "resource": "connection",
+   "package": "yandex.cloud.connectionmanager.v1"
+  },
+  {
+   "service": "connection-manager",
+   "path": "/v1/connections",
+   "rpc": "ConnectionService.List",
+   "resource": "connections",
+   "package": "yandex.cloud.connectionmanager.v1",
+   "params": [
+    {
+     "name": "authorId"
+    },
+    {
+     "name": "dbType"
+    },
+    {
+     "name": "isManual"
+    },
+    {
+     "name": "isOnpremise"
+    },
+    {
+     "name": "mdbClusterId"
+    },
+    {
+     "name": "namePatternOrId"
+    },
+    {
+     "name": "withCanUse"
+    }
+   ]
+  },
+  {
+   "service": "connection-manager",
+   "path": "/v1/operations",
+   "rpc": "ConnectionService.ListOperations",
+   "resource": "operations",
+   "package": "yandex.cloud.connectionmanager.v1",
+   "params": [
+    {
+     "name": "connectionId"
+    }
+   ]
   },
   {
    "service": "container-registry",
@@ -6418,6 +6598,25 @@
    "package": "yandex.cloud.trino.v1"
   },
   {
+   "service": "managed-ytsaurus",
+   "path": "/ytsaurus/v1/clusters",
+   "rpc": "ClusterService.List",
+   "resource": "clusters",
+   "package": "yandex.cloud.ytsaurus.v1",
+   "params": [
+    {
+     "name": "filter"
+    }
+   ]
+  },
+  {
+   "service": "managed-ytsaurus",
+   "path": "/ytsaurus/v1/clusters/{cluster_id}",
+   "rpc": "ClusterService.Get",
+   "resource": "clusters",
+   "package": "yandex.cloud.ytsaurus.v1"
+  },
+  {
    "service": "marketplace",
    "path": "/marketplace/license-manager/saas/v1/instances/{instance_id}",
    "rpc": "InstanceService.Get",
@@ -7849,6 +8048,44 @@
    ]
   },
   {
+   "service": "serverless-mcp-gateway",
+   "path": "/mcpgateway/v1/mcpGateways",
+   "rpc": "McpGatewayService.List",
+   "resource": "mcpGateways",
+   "package": "yandex.cloud.serverless.mcpgateway.v1",
+   "params": [
+    {
+     "name": "filter"
+    }
+   ]
+  },
+  {
+   "service": "serverless-mcp-gateway",
+   "path": "/mcpgateway/v1/mcpGateways/{mcp_gateway_id}",
+   "rpc": "McpGatewayService.Get",
+   "resource": "mcpGateways",
+   "package": "yandex.cloud.serverless.mcpgateway.v1"
+  },
+  {
+   "service": "serverless-mcp-gateway",
+   "path": "/mcpgateway/v1/mcpGateways/{mcp_gateway_id}/operations",
+   "rpc": "McpGatewayService.ListOperations",
+   "resource": "operations",
+   "package": "yandex.cloud.serverless.mcpgateway.v1",
+   "params": [
+    {
+     "name": "filter"
+    }
+   ]
+  },
+  {
+   "service": "serverless-mcp-gateway",
+   "path": "/mcpgateway/v1/mcpGateways/{resource_id}:listAccessBindings",
+   "rpc": "McpGatewayService.ListAccessBindings",
+   "resource": "mcpGateways",
+   "package": "yandex.cloud.serverless.mcpgateway.v1"
+  },
+  {
    "service": "serverless-triggers",
    "path": "/triggers/v1/triggers",
    "rpc": "TriggerService.List",
@@ -7977,6 +8214,97 @@
      "name": "filter"
     }
    ]
+  },
+  {
+   "service": "smart-captcha",
+   "path": "/smartcaptcha/v1/captchas",
+   "rpc": "CaptchaService.List",
+   "resource": "captchas",
+   "package": "yandex.cloud.smartcaptcha.v1"
+  },
+  {
+   "service": "smart-captcha",
+   "path": "/smartcaptcha/v1/captchas/{captcha_id}",
+   "rpc": "CaptchaService.Get",
+   "resource": "captchas",
+   "package": "yandex.cloud.smartcaptcha.v1"
+  },
+  {
+   "service": "smart-captcha",
+   "path": "/smartcaptcha/v1/captchas/{captcha_id}:getKeys",
+   "rpc": "CaptchaService.GetKeys",
+   "resource": "captchas",
+   "package": "yandex.cloud.smartcaptcha.v1"
+  },
+  {
+   "service": "smart-captcha",
+   "path": "/smartcaptcha/v1/captchas/{captcha_id}:getSecretKey",
+   "rpc": "CaptchaService.GetSecretKey",
+   "resource": "captchas",
+   "package": "yandex.cloud.smartcaptcha.v1"
+  },
+  {
+   "service": "smart-web-security",
+   "path": "/smartwebsecurity/v1/advancedRateLimiterProfiles",
+   "rpc": "AdvancedRateLimiterProfileService.List",
+   "resource": "advancedRateLimiterProfiles",
+   "package": "yandex.cloud.smartwebsecurity.v1.advanced_rate_limiter"
+  },
+  {
+   "service": "smart-web-security",
+   "path": "/smartwebsecurity/v1/advancedRateLimiterProfiles/{advanced_rate_limiter_profile_id}",
+   "rpc": "AdvancedRateLimiterProfileService.Get",
+   "resource": "advancedRateLimiterProfiles",
+   "package": "yandex.cloud.smartwebsecurity.v1.advanced_rate_limiter"
+  },
+  {
+   "service": "smart-web-security",
+   "path": "/smartwebsecurity/v1/matchLists",
+   "rpc": "MatchListService.List",
+   "resource": "matchLists",
+   "package": "yandex.cloud.smartwebsecurity.v1.match_list"
+  },
+  {
+   "service": "smart-web-security",
+   "path": "/smartwebsecurity/v1/matchLists/{list_id}",
+   "rpc": "MatchListService.Get",
+   "resource": "matchLists",
+   "package": "yandex.cloud.smartwebsecurity.v1.match_list"
+  },
+  {
+   "service": "smart-web-security",
+   "path": "/smartwebsecurity/v1/securityProfiles",
+   "rpc": "SecurityProfileService.List",
+   "resource": "securityProfiles",
+   "package": "yandex.cloud.smartwebsecurity.v1"
+  },
+  {
+   "service": "smart-web-security",
+   "path": "/smartwebsecurity/v1/securityProfiles/{security_profile_id}",
+   "rpc": "SecurityProfileService.Get",
+   "resource": "securityProfiles",
+   "package": "yandex.cloud.smartwebsecurity.v1"
+  },
+  {
+   "service": "smart-web-security",
+   "path": "/smartwebsecurity/v1/wafProfiles",
+   "rpc": "WafProfileService.List",
+   "resource": "wafProfiles",
+   "package": "yandex.cloud.smartwebsecurity.v1.waf"
+  },
+  {
+   "service": "smart-web-security",
+   "path": "/smartwebsecurity/v1/wafProfiles/{waf_profile_id}",
+   "rpc": "WafProfileService.Get",
+   "resource": "wafProfiles",
+   "package": "yandex.cloud.smartwebsecurity.v1.waf"
+  },
+  {
+   "service": "smart-web-security",
+   "path": "/smartwebsecurity/v1/wafRuleSetDescriptors/{name}/{version}",
+   "rpc": "RuleSetDescriptorService.Get",
+   "resource": "wafRuleSetDescriptors",
+   "package": "yandex.cloud.smartwebsecurity.v1.waf"
   },
   {
    "service": "storage",

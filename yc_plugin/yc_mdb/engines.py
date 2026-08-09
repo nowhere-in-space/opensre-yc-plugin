@@ -42,6 +42,16 @@ class Engine:
     integration: str
     """OpenSRE integration that queries this engine's data plane."""
 
+    log_service_types: tuple[str, ...] = ()
+    """``serviceType`` values the ``:logs`` endpoint accepts, first one default.
+
+    An engine keeps several log streams and the endpoint serves one at a time.
+    ClickHouse rejects a request without this outright; the rest answer with
+    whichever stream they treat as primary, which is often not the interesting
+    one — MySQL's error log rather than its slow-query log. Empty means the
+    engine takes no such parameter.
+    """
+
 
 ENGINES: Final[tuple[Engine, ...]] = (
     # PostgreSQL answers on 6432, not 5432 — connections go through a pooler.
@@ -52,8 +62,18 @@ ENGINES: Final[tuple[Engine, ...]] = (
         "/managed-postgresql/v1",
         6432,
         "postgresql",
+        ("POSTGRESQL", "POOLER", "REPACK"),
     ),
-    Engine("mysql", "MySQL", "managed-mysql", "/managed-mysql/v1", 3306, "mysql"),
+    Engine(
+        "mysql",
+        "MySQL",
+        "managed-mysql",
+        "/managed-mysql/v1",
+        3306,
+        "mysql",
+        # Error log first: it is what explains a cluster that is misbehaving.
+        ("MYSQL_ERROR", "MYSQL_GENERAL", "MYSQL_SLOW_QUERY", "MYSQL_AUDIT"),
+    ),
     Engine(
         "clickhouse",
         "ClickHouse",
@@ -61,8 +81,18 @@ ENGINES: Final[tuple[Engine, ...]] = (
         "/managed-clickhouse/v1",
         8443,
         "clickhouse",
+        # Required here: without it the endpoint refuses the read.
+        ("CLICKHOUSE", "CLICKHOUSE_KEEPER"),
     ),
-    Engine("valkey", "Valkey (was Redis)", "managed-redis", "/managed-redis/v1", 6380, "redis"),
+    Engine(
+        "valkey",
+        "Valkey (was Redis)",
+        "managed-redis",
+        "/managed-redis/v1",
+        6380,
+        "redis",
+        ("REDIS",),
+    ),
     Engine(
         "storedoc",
         "StoreDoc (was MongoDB)",
@@ -70,6 +100,7 @@ ENGINES: Final[tuple[Engine, ...]] = (
         "/managed-mongodb/v1",
         27018,
         "mongodb",
+        ("MONGOD", "MONGOS", "MONGOCFG", "AUDIT"),
     ),
     Engine("kafka", "Apache Kafka", "managed-kafka", "/managed-kafka/v1", 9091, "kafka"),
     Engine(
@@ -79,6 +110,7 @@ ENGINES: Final[tuple[Engine, ...]] = (
         "/managed-opensearch/v1",
         9200,
         "opensearch",
+        ("OPENSEARCH", "DASHBOARDS"),
     ),
     Engine(
         "greenplum",
@@ -87,6 +119,7 @@ ENGINES: Final[tuple[Engine, ...]] = (
         "/managed-greenplum/v1",
         6432,
         "postgresql",
+        ("GREENPLUM", "GREENPLUM_POOLER", "GREENPLUM_PXF"),
     ),
 )
 

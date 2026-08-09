@@ -25,6 +25,20 @@ from yc_plugin.yc_logging.client import (
 
 SOURCE = "yc_logging"
 
+#: Attached to an empty read, where the wrong conclusion is easiest to draw.
+#: Cloud Logging holds what was sent to it, which is not everything that was
+#: logged, so "no entries" is a statement about this store and not about the
+#: service being asked after.
+_WHERE_ELSE_LOGS_LIVE = (
+    "No entries in Cloud Logging for this window. That is not evidence nothing "
+    "logged: a managed database keeps its own log and sends nothing here unless "
+    "export was switched on — read it with read_yc_db_logs. Kubernetes container "
+    "logs are read with kubernetes_get_pod_logs. Serverless functions do log "
+    "here by default, so for those an empty result is meaningful. Check the "
+    "window too: window_minutes counts back from now, and a past incident needs "
+    "from_time and to_time."
+)
+
 _FILTER_HELP = (
     "Cloud Logging filter expression. Fields: message (the default, so bare "
     "text searches it), level, resource_type, resource_id, stream_name, "
@@ -200,6 +214,8 @@ def read_yc_logs(
     note = retention_warning(start)
     if note:
         result["note"] = note
+    if not entries:
+        result["where_else_logs_live"] = _WHERE_ELSE_LOGS_LIVE
     return result
 
 
