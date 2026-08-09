@@ -3,8 +3,8 @@
 The data is generated from the protobuf definitions in yandex-cloud/cloudapi,
 where each method carries its REST binding as a ``google.api.http`` option — so
 this is what the API actually exposes rather than a hand-kept list that drifts.
-Regenerate with ``scripts/fork/build_yc_api_index.py`` after Yandex ships new
-services.
+Regenerate with ``scripts/build_api_index.py`` after Yandex ships new services;
+:func:`provenance` reports which cloudapi commit the current data came from.
 
 Only read bindings are present. The agent has no mutating path at all, so an
 index that also listed writes would just invite it to attempt one.
@@ -48,11 +48,29 @@ class ApiEndpoint(NamedTuple):
 
 
 @lru_cache(maxsize=1)
-def _endpoints() -> tuple[ApiEndpoint, ...]:
+def _raw_index() -> dict[str, Any]:
     try:
-        raw: dict[str, Any] = json.loads(_INDEX_FILE.read_text(encoding="utf-8"))
+        loaded: dict[str, Any] = json.loads(_INDEX_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return ()
+        return {}
+    return loaded
+
+
+def provenance() -> dict[str, str]:
+    """Return which cloudapi commit produced the index, and when it was built.
+
+    An index generated from protobuf definitions is only as current as the
+    checkout it came from, and nothing about the endpoints themselves says how
+    old they are. Keys: ``source``, ``commit``, ``commit_date``, ``generated``.
+    """
+    return {
+        key: str(value) for key, value in _raw_index().items() if key != "endpoints"
+    }
+
+
+@lru_cache(maxsize=1)
+def _endpoints() -> tuple[ApiEndpoint, ...]:
+    raw = _raw_index()
     return tuple(
         ApiEndpoint(
             service=str(item.get("service", "")),

@@ -239,7 +239,7 @@ def _load_logging_protos() -> tuple[Any, Any, Any]:
         raise LogReadingUnavailableError(
             "Reading Cloud Logging entries needs the Yandex Cloud gRPC stubs, which "
             "are an optional dependency because nothing else in this integration "
-            "uses them. Install with: pip install 'opensre[yandex_cloud]' — or "
+            "uses them. Install with: pip install 'opensre-yandex-cloud[logs]' — or "
             "pip install yandexcloud. Listing log groups and reading metrics work "
             f"without it. ({exc})"
         ) from exc

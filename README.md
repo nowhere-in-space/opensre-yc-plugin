@@ -123,6 +123,24 @@ which `conftest.py` arranges.
 Configuration is redirected to a temporary directory for the run, so the tests
 cannot read or write a real `~/.opensre-yc/config.json`.
 
+## Regenerating the endpoint index
+
+The generic reader is backed by an index built from Yandex's own protobuf
+definitions. Rebuild it when Yandex ships new services:
+
+```
+git clone --depth 1 https://github.com/yandex-cloud/cloudapi
+python scripts/build_api_index.py cloudapi
+```
+
+The index records the cloudapi commit it came from, so how far behind it has
+fallen is a question with an answer:
+
+```python
+from yc_plugin.yandex_cloud.api_index import provenance
+provenance()   # {'source': ..., 'commit': ..., 'commit_date': ..., 'generated': ...}
+```
+
 ## Compatibility
 
 Built against OpenSRE's public extension points
