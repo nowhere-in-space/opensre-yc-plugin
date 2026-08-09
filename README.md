@@ -21,14 +21,16 @@ API, read-only:
 - Logs and log groups (Cloud Logging)
 - Audit events (Audit Trails)
 - Compute instances and serial-port diagnostics
-- Managed Kubernetes clusters
+- Managed Kubernetes clusters, and the workloads inside them
 - Managed databases (PostgreSQL, MySQL, ClickHouse, Redis, MongoDB, Kafka,
-  OpenSearch, Greenplum)
+  OpenSearch, Greenplum), including the log each cluster keeps for itself —
+  a separate store from Cloud Logging, which holds nothing from a managed
+  database unless export was switched on
 - Serverless functions and containers
 - Network load balancer health
 
 Any other service is reachable through a generic REST reader backed by an index
-of about 900 read endpoints, generated from Yandex's own protobuf definitions.
+of about 940 read endpoints, generated from Yandex's own protobuf definitions.
 The agent never writes to Yandex Cloud: the client issues GET only, and every
 mutating operation in the API uses a different verb.
 
