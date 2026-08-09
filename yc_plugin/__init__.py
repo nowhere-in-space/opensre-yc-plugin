@@ -11,6 +11,7 @@ Call :func:`install` once at startup.
 
 from __future__ import annotations
 
+import functools
 import logging
 
 logger = logging.getLogger(__name__)
@@ -47,19 +48,29 @@ def install() -> None:
     """Register the plugin's tools, alert routing and skill via public hooks."""
     import importlib
 
+    from tools.registry import register_external_tool_package
+
+    for dotted in _TOOL_PACKAGES:
+        register_external_tool_package(importlib.import_module(dotted))
+
+    _register_alerts()
+    _keep_alerts_through_adapter_reinstall()
+
+    _configure_llm()
+    logger.info("yandex_cloud plugin installed: %d tool packages", len(_TOOL_PACKAGES))
+
+
+def _register_alerts() -> None:
+    """Point alert-source detection, routing and detail fields at Yandex Cloud."""
     from core.domain.alerts.alert_source import (
         AlertSourceRouting,
         register_alert_source_detector,
         register_alert_source_routing,
     )
     from core.domain.alerts.extraction import register_alert_detail_fields
-    from tools.registry import register_external_tool_package
 
     from yc_plugin.yandex_cloud.alert_detail_fields import ALERT_DETAIL_FIELDS
     from yc_plugin.yandex_cloud.alert_source_detect import detect_yandex_cloud_alert_source
-
-    for dotted in _TOOL_PACKAGES:
-        register_external_tool_package(importlib.import_module(dotted))
 
     register_alert_source_detector(detect_yandex_cloud_alert_source)
     register_alert_source_routing(
@@ -71,8 +82,41 @@ def install() -> None:
     )
     register_alert_detail_fields(*ALERT_DETAIL_FIELDS)
 
-    _configure_llm()
-    logger.info("yandex_cloud plugin installed: %d tool packages", len(_TOOL_PACKAGES))
+
+#: Guards against wrapping the upstream function more than once per process.
+_alerts_kept_through_reinstall = False
+
+
+def _keep_alerts_through_adapter_reinstall() -> None:
+    """Re-apply the alert hooks every time OpenSRE rebuilds its adapter set.
+
+    ``register_harness_adapters()`` clears the alert-source and alert-detail
+    registries before repopulating them from the built-in integrations, and
+    OpenSRE runs it during startup — that is, after ``install()``. Without this
+    the plugin's alert detection is registered and then silently dropped, which
+    leaves a Yandex Monitoring incident with no source and no seeded tools.
+
+    OpenSRE imports the function inside ``install_runtime()`` rather than at
+    module level, so replacing the module attribute is enough to be seen. That
+    helper is documented as safe to call repeatedly, hence re-applying on every
+    call rather than once.
+    """
+    global _alerts_kept_through_reinstall
+
+    if _alerts_kept_through_reinstall:
+        return
+
+    import integrations.harness_adapters as harness_adapters
+
+    register_builtin_adapters = harness_adapters.register_harness_adapters
+
+    @functools.wraps(register_builtin_adapters)
+    def register_adapters_keeping_yandex_cloud() -> None:
+        register_builtin_adapters()
+        _register_alerts()
+
+    harness_adapters.register_harness_adapters = register_adapters_keeping_yandex_cloud
+    _alerts_kept_through_reinstall = True
 
 
 _AI_STUDIO_HOST = "https://ai.api.cloud.yandex.net"
