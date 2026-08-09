@@ -24,3 +24,7 @@ authorized_key*.json
 
 # OS
 .DS_Store
+
+# Coverage artefacts
+.coverage
+htmlcov/
