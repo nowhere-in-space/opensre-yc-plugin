@@ -138,6 +138,12 @@ provider-specific features do not apply:
   `x-data-logging-enabled: false` so Yandex does not retain prompt content. This
   path cannot set that header. If prompt retention matters, review the AI Studio
   data-processing terms for your account.
+- **A metadata token is minted once per process.** When `opensre-yc configure`
+  is set to authenticate from the instance metadata service, the token is
+  fetched while the plugin installs and stays in the environment for the life of
+  the process. That is fine for a run that finishes in minutes, but a process
+  that outlives the token — a gateway left running for days — starts failing
+  with `401` and has to be restarted. Use an API key for anything long-lived.
 
 These are the trade-offs of a zero-code setup. A native Yandex provider would
 remove them, at the cost of changes to OpenSRE itself.
