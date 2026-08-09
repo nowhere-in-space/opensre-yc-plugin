@@ -50,6 +50,19 @@ class TestTheSkillIsActuallyLoaded:
 #: The sentence the whole fix rests on.
 THE_RULE = "A pod is not a Yandex Cloud resource"
 
+#: Everything the agent needs before it can act on that rule. The names matter
+#: as much as the rule: "use the kubernetes tools" is not actionable without
+#: them, and the control-plane pair is what gives the split a landing point.
+ESSENTIALS = (
+    THE_RULE,
+    "kubernetes_list_pods",
+    "kubernetes_get_events",
+    "kubernetes_get_pod_logs",
+    "kubernetes_list_nodes",
+    "list_yc_k8s_clusters",
+    "get_yc_k8s_cluster",
+)
+
 #: Slack the rule must keep above the cut, in characters. The formatted guidance
 #: embeds the absolute path of SKILL.md, so how much of the document survives
 #: depends on where the plugin happens to be installed. CI's path is some forty
@@ -88,29 +101,25 @@ class TestTheKubernetesRoutingSurvivesTheLengthCap:
 
         assert THE_RULE in text
 
-    def test_it_sits_far_enough_above_the_cut_to_stay_there(self) -> None:
-        """Surviving on this machine is not the same as surviving anywhere."""
+    @pytest.mark.parametrize("essential", ESSENTIALS)
+    def test_each_essential_is_present(self, essential: str) -> None:
+        _, text = skills._loaded()
+
+        assert essential in text
+
+    @pytest.mark.parametrize("essential", ESSENTIALS)
+    def test_each_essential_sits_far_enough_above_the_cut(self, essential: str) -> None:
+        """Surviving on this machine is not the same as surviving anywhere.
+
+        Checking only presence lets the document grow until something drifts past
+        the cut on a machine with a longer install path — which is how this failed
+        twice, once for the rule and once for the control-plane tool names.
+        """
         text = _formatted_untruncated()
 
-        end_of_rule = text.index(THE_RULE) + len(THE_RULE)
+        end = text.index(essential) + len(essential)
 
-        assert end_of_rule < skills.MAX_GUIDANCE_CHARS - PATH_HEADROOM
-
-    @pytest.mark.parametrize(
-        "tool_name",
-        ["kubernetes_list_pods", "kubernetes_get_events"],
-    )
-    def test_the_tools_to_use_instead_are_named(self, tool_name: str) -> None:
-        """"Use the kubernetes tools" is not actionable without their names."""
-        _, text = skills._loaded()
-
-        assert tool_name in text
-
-    def test_the_control_plane_tools_are_named_too(self) -> None:
-        """Otherwise the split between cluster and workload has no landing point."""
-        _, text = skills._loaded()
-
-        assert "list_yc_k8s_clusters" in text
+        assert end < skills.MAX_GUIDANCE_CHARS - PATH_HEADROOM
 
 
 class TestWhatTheToolsThemselvesSay:
