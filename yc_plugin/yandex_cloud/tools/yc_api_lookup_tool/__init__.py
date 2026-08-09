@@ -1,6 +1,6 @@
 """Find the REST endpoint for any Yandex Cloud resource.
 
-Yandex Cloud has ~900 readable endpoints across 62 services. Only a handful get
+Yandex Cloud has ~940 readable endpoints across 68 services. Only a handful get
 a purpose-built tool, and guessing a path for the rest costs a round trip that
 returns a bare 404 with nothing to learn from. This looks the path up in the
 index generated from the official protobuf definitions, so the agent reaches for
