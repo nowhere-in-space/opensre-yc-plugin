@@ -10,6 +10,7 @@ prompts appear.
 from __future__ import annotations
 
 import stat
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -477,6 +478,31 @@ class TestRunDelegatesToOpenSRE:
 
         assert cli.run(["investigate"]) == 0
         assert order == ["install", "opensre"]
+
+    def test_opensre_is_imported_before_the_plugin_is_installed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Not incidental: the plugin's own imports need OpenSRE on the path first.
+
+        OpenSRE ships a top-level ``platform`` package shadowing the standard
+        library module, and an editable install only puts its directory on the
+        path once one of its modules is imported. Installing first bound
+        ``platform`` to the stdlib and broke every import beneath it, so
+        ``opensre-yc run`` worked only from inside the OpenSRE checkout.
+        """
+        seen: dict[str, Any] = {}
+
+        def _install() -> None:
+            seen["opensre_imported"] = "surfaces.cli.app" in sys.modules
+
+        import yc_plugin
+
+        monkeypatch.setattr(yc_plugin, "install", _install)
+        monkeypatch.setattr("surfaces.cli.app.main", lambda: 0)
+
+        cli.run(["investigate"])
+
+        assert seen["opensre_imported"] is True
 
     def test_the_arguments_are_handed_over_as_opensres_own(
         self, monkeypatch: pytest.MonkeyPatch

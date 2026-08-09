@@ -9,21 +9,30 @@ description: >
 tools:
   - find_yc_api
   - execute_yc_operation
-  - query_yc_metrics
-  - list_yc_metrics
-  - read_yc_logs
-  - list_yc_log_groups
-  - read_yc_audit_events
 ---
 
 # yandex-cloud
 
-Everything reaches Yandex Cloud over its REST API with the configured
-credential. There is no CLI step and no shell step.
+Two rules first, because they are the ones that waste a whole investigation
+when they are missed.
+
+**A pod is not a Yandex Cloud resource.** The Yandex Cloud API knows the
+Kubernetes *cluster* — version, health, node groups, read with
+`list_yc_k8s_clusters` and `get_yc_k8s_cluster` — and nothing about what runs
+inside it. Neither `execute_yc_operation` nor `find_yc_api` can reach a pod, an
+event or a container log, and no `/managed-kubernetes/` path returns one. Read
+those with `kubernetes_list_pods`, `kubernetes_get_events`,
+`kubernetes_get_pod_logs` and `kubernetes_list_nodes`, which talk to the
+cluster's own API server. If those tools are absent, Managed Kubernetes access
+was not connected during setup — say so rather than trying the Yandex Cloud API
+instead.
 
 **Never run `yc` via a shell tool.** It is normally not installed, it needs its
 own separate authentication, and it can mutate. If you catch yourself writing
 `yc ...` to answer a question, use `execute_yc_operation` instead.
+
+Everything else reaches Yandex Cloud over its REST API with the configured
+credential. There is no CLI step and no shell step.
 
 ## What a connected `yandex_cloud` means
 
@@ -38,7 +47,8 @@ tell the user a piece of it "is not configured":
 | Logs of a managed database | `find_yc_api`, then `execute_yc_operation` — see below |
 | Audit events, who changed what | `read_yc_audit_events` |
 | VMs, disks, images, instance groups | `execute_yc_operation` |
-| Kubernetes clusters and node groups | `execute_yc_operation` |
+| Kubernetes **clusters and node groups** | `list_yc_k8s_clusters`, `get_yc_k8s_cluster` |
+| Kubernetes **pods, events, pod logs, nodes** | `kubernetes_list_pods`, `kubernetes_get_events`, `kubernetes_get_pod_logs`, `kubernetes_list_nodes` |
 | Managed PostgreSQL/MySQL/ClickHouse/Redis/MongoDB/Kafka/OpenSearch | `execute_yc_operation` |
 | Functions, containers, triggers, API gateways | `execute_yc_operation` |
 | Networks, subnets, security groups, load balancers | `execute_yc_operation` |
@@ -47,6 +57,7 @@ tell the user a piece of it "is not configured":
 
 Monitoring and logging are configured whenever Yandex Cloud is configured. They
 share one credential; there is no separate setup to ask the user for.
+
 
 ## Reading anything
 
@@ -64,6 +75,44 @@ Reads only. Every mutating operation uses a different HTTP verb and the client
 refuses those, so there is no way to change anything here. When the answer is
 that something *should* change, give the user the exact `yc ...` command to run
 themselves — writing that command out is correct, running it is not.
+
+## Kubernetes workloads are not in the Yandex Cloud API
+
+The Yandex Cloud API knows about the *cluster* — its version, health, node
+groups, maintenance window. It knows nothing about what runs inside it. There is
+no endpoint for pods, and searching for one wastes the investigation:
+
+> A pod is not a Yandex Cloud resource. `execute_yc_operation` and `find_yc_api`
+> cannot reach one, and neither can any `/managed-kubernetes/` path.
+
+Workloads are read with the `kubernetes_*` tools, which talk to the cluster's own
+API server:
+
+| Ask about | Reach it with |
+| --- | --- |
+| Which pods exist, and their state | `kubernetes_list_pods` |
+| Why a pod is not starting | `kubernetes_describe_pod`, `kubernetes_get_events` |
+| What a container logged | `kubernetes_get_pod_logs` |
+| Node pressure, NotReady nodes | `kubernetes_list_nodes` |
+| Deployments, services, statefulsets, ingresses | `kubernetes_list_deployments` and friends |
+| Anything else in the cluster | `kubernetes_get_resource` |
+
+So an incident in a Managed Kubernetes cluster is usually two reads, in this
+order:
+
+1. `list_yc_k8s_clusters` — is the control plane itself healthy? A degraded
+   master explains everything below it, and nothing else needs checking.
+2. `kubernetes_list_pods` and `kubernetes_get_events` — what is actually wrong
+   with the workload.
+
+These tools appear only when a cluster was connected during setup. If they are
+absent, say that Managed Kubernetes access is not configured and that
+`opensre-yc configure` connects it — do not fall back to `execute_yc_operation`
+and report that pods cannot be read.
+
+A pod stuck in `Pending` has no logs at all: the container never started, so the
+API answers `400`, not `403`. Read its events instead — that is where the reason
+is.
 
 ## Cloud Logging is not the only place logs live
 

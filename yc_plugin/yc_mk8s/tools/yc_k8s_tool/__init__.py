@@ -16,6 +16,38 @@ from yc_plugin.yandex_cloud.availability import (
 SOURCE = "yc_mk8s"
 SERVICE = "managed-kubernetes"
 
+#: Named here rather than inside the result literal: the point of the hint is
+#: that it arrives exactly when the agent is looking at a cluster and about to
+#: go looking for its pods in the wrong API.
+_WORKLOAD_TOOLS = (
+    "kubernetes_list_pods",
+    "kubernetes_get_events",
+    "kubernetes_get_pod_logs",
+    "kubernetes_describe_pod",
+    "kubernetes_list_nodes",
+)
+_WORKLOAD_HINT = (
+    "Pods, events, container logs and nodes are read with these tools, not "
+    "through the Yandex Cloud API — it has no endpoint for them. A pod that is "
+    "not starting needs kubernetes_get_events and kubernetes_describe_pod: the "
+    "scheduler's own reason is there, and a pod listing only shows that it is "
+    "stuck. A Pending pod has no container logs at all."
+)
+_WORKLOAD_UNAVAILABLE = (
+    "No cluster is connected for workload reads, so pods and events cannot be "
+    "read. `opensre-yc configure` connects one. Do not try to read them through "
+    "the Yandex Cloud API instead: it has no endpoint for them."
+)
+
+
+def _workload_access() -> dict[str, Any]:
+    """Say how to read what runs inside the cluster, and whether that is set up."""
+    from tools.registry import get_registered_tool_map
+
+    if "kubernetes_list_pods" in get_registered_tool_map():
+        return {"workload_tools": list(_WORKLOAD_TOOLS), "workload_hint": _WORKLOAD_HINT}
+    return {"workload_tools": [], "workload_hint": _WORKLOAD_UNAVAILABLE}
+
 _CLUSTERS_PATH = "/managed-kubernetes/v1/clusters"
 _NODE_GROUPS_PATH = "/managed-kubernetes/v1/nodeGroups"
 
@@ -86,7 +118,9 @@ def _master_access(cluster: dict[str, Any]) -> dict[str, Any]:
     description=(
         "List Managed Kubernetes clusters in the folder with their status, "
         "health, and version. Use to find a cluster id or to check whether the "
-        "control plane itself is degraded before investigating workloads."
+        "control plane itself is degraded before investigating workloads. "
+        "Reads the control plane only — pods, events and container logs come "
+        "from the kubernetes_* tools, and the result names them."
     ),
     use_cases=[
         "Finding a cluster id from its name",
@@ -149,6 +183,7 @@ def list_yc_k8s_clusters(
         "unhealthy": [cluster for cluster in clusters if not cluster["healthy"]],
         "count": len(clusters),
         "next_page_token": response.get("metadata", {}).get("next_page_token", ""),
+        **_workload_access(),
     }
 
 
@@ -242,6 +277,7 @@ def get_yc_k8s_cluster(
         "node_groups": node_groups,
         "unhealthy_node_groups": [group for group in node_groups if group["status"] != "RUNNING"],
         "master_access": _master_access(cluster),
+        **_workload_access(),
     }
 
 

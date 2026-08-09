@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from core.tool_framework.tool_decorator import tool
+from yc_plugin.skills import describe
 from yc_plugin.yandex_cloud.api_index import (
     DEFAULT_LIMIT,
     endpoint_count,
@@ -28,13 +29,15 @@ SOURCE = "yandex_cloud"
     display_name="Yandex Cloud",
     source=SOURCE,
     surfaces=("investigation", "action"),
-    description=(
+    description=describe(
+        "find_yc_api",
         "Find the exact REST path for any Yandex Cloud resource, across every "
         "service the API exposes — not just the ones with a dedicated tool. "
         "Search by resource name ('clusters', 'security groups', 'certificates'), "
         "by service, or both. Returns paths ready to pass to execute_yc_operation. "
         "Use this instead of guessing a path, and instead of the `yc` CLI, which "
-        "is not how this agent reaches Yandex Cloud."
+        "is not how this agent reaches Yandex Cloud. Indexes Yandex Cloud "
+        "resources only — Kubernetes pods and their logs are not in it.",
     ),
     use_cases=[
         "Reading a resource type that has no dedicated tool",
