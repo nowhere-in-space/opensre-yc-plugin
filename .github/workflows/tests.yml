@@ -41,9 +41,12 @@ jobs:
         working-directory: opensre
         run: uv sync
 
+      # The logs extra is included so the gRPC path for Cloud Logging is
+      # exercised somewhere. It is optional for users, and absent on a typical
+      # development machine, which leaves that import covered only in CI.
       - name: Install the plugin into it
         working-directory: opensre
-        run: uv pip install -e "../opensre-yc-plugin[dev]"
+        run: uv pip install -e "../opensre-yc-plugin[dev,logs]"
 
       - name: Run the tests
         working-directory: opensre-yc-plugin

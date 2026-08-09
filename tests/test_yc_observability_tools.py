@@ -244,6 +244,26 @@ def _real_missing_dependency_message() -> str:
     raise AssertionError("the stubs imported when they were meant to be missing")
 
 
+class TestTheGrpcPathWhenTheStubsArePresent:
+    """The other half of the optional dependency, exercised where it is installed.
+
+    Everything else about Cloud Logging is covered with the stubs absent, since
+    that is the common case. CI installs the extra so this side is not left to
+    the first person who enables it in production.
+    """
+
+    def test_the_stubs_import_and_return_what_the_client_expects(self) -> None:
+        pytest.importorskip("yandexcloud", reason="the logs extra is not installed here")
+
+        from yc_plugin.yc_logging import client
+
+        service_pb2, service_pb2_grpc, entry_pb2 = client._load_logging_protos()
+
+        assert hasattr(service_pb2, "ReadRequest")
+        assert hasattr(service_pb2_grpc, "LogReadingServiceStub")
+        assert hasattr(entry_pb2, "LogEntry")
+
+
 class TestTheInstallHintIsRealisable:
     """An install hint naming something that cannot be installed is worse than none.
 
