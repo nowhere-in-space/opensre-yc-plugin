@@ -113,6 +113,7 @@ def _register_alerts() -> None:
     from core.domain.alerts.extraction import register_alert_detail_fields
 
     from yc_plugin.yandex_cloud.alert_detail_fields import ALERT_DETAIL_FIELDS
+    from yc_plugin.yandex_cloud.alert_source_aliases import register_aliases
     from yc_plugin.yandex_cloud.alert_source_detect import detect_yandex_cloud_alert_source
 
     register_alert_source_detector(detect_yandex_cloud_alert_source)
@@ -124,6 +125,7 @@ def _register_alerts() -> None:
         ),
     )
     register_alert_detail_fields(*ALERT_DETAIL_FIELDS)
+    register_aliases()
 
 
 #: Guards against wrapping the upstream function more than once per process.
