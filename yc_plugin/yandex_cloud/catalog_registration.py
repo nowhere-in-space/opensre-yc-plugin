@@ -93,6 +93,49 @@ def load_from_env() -> dict[str, Any] | None:
     }
 
 
+def setup_spec_for_this_host() -> Any:
+    """Return the setup spec, with folder and cloud prefilled on a Yandex Cloud VM.
+
+    On an instance both identifiers are already known - the metadata service
+    hands them out - so asking the operator to fetch them from the console is
+    make-work, and the metadata auth mode reads oddly without them: it needs no
+    credential, yet still demands a folder typed in by hand.
+
+    Resolved when setup runs rather than at import. ``SetupField.default`` is a
+    plain string, so the only alternative would be a metadata call during
+    ``install()``, which costs a 3-second timeout on every startup outside the
+    cloud to answer a question nobody asked.
+
+    Off an instance the spec is returned untouched.
+    """
+    from dataclasses import replace
+
+    from yc_plugin import metadata
+    from yc_plugin.yandex_cloud.setup import (
+        CLOUD_ID_FIELD,
+        FOLDER_ID_FIELD,
+        YANDEX_CLOUD_SETUP,
+    )
+
+    if not metadata.is_available():
+        return YANDEX_CLOUD_SETUP
+
+    from_instance = {
+        FOLDER_ID_FIELD: metadata.fetch_folder_id() or "",
+        CLOUD_ID_FIELD: metadata.fetch_cloud_id() or "",
+    }
+    if not any(from_instance.values()):
+        return YANDEX_CLOUD_SETUP
+
+    fields = tuple(
+        replace(field, default=from_instance[field.name])
+        if from_instance.get(field.name)
+        else field
+        for field in YANDEX_CLOUD_SETUP.fields
+    )
+    return replace(YANDEX_CLOUD_SETUP, fields=fields)
+
+
 def _register_setup_handler() -> None:
     """Make ``opensre integrations setup yandex_cloud`` run the plugin's flow.
 
@@ -100,13 +143,15 @@ def _register_setup_handler() -> None:
     the literal for built-ins too (``_HANDLERS["temporal"] = ...``), so adding one
     is the documented shape rather than a reach into private state.
     """
-    from integrations.cli import _HANDLERS, _run_spec_setup
-    from yc_plugin.yandex_cloud.setup import YANDEX_CLOUD_SETUP
+    import integrations.cli as opensre_cli
 
     def _setup_yandex_cloud() -> None:
-        _run_spec_setup(YANDEX_CLOUD_SETUP)
+        # Looked up on the module when the command runs, not bound here: a name
+        # imported at registration time is a snapshot, which a caller replacing
+        # the runner - a test, or a surface wrapping the prompt - cannot reach.
+        opensre_cli._run_spec_setup(setup_spec_for_this_host())
 
-    _HANDLERS[SERVICE] = _setup_yandex_cloud
+    opensre_cli._HANDLERS[SERVICE] = _setup_yandex_cloud
 
 
 def register_with_core() -> bool:
@@ -162,4 +207,5 @@ __all__ = [
     "is_configured_in_env",
     "load_from_env",
     "register_with_core",
+    "setup_spec_for_this_host",
 ]

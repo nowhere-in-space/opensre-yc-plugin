@@ -87,7 +87,7 @@ def env_configured(monkeypatch: pytest.MonkeyPatch) -> Any:
 
 def test_setup_lists_the_integration(registered: str) -> None:
     """``opensre integrations setup yandex_cloud`` has to be dispatchable."""
-    import integrations.cli as cli
+    from integrations import cli
 
     assert SERVICE in cli.setup_services()
 
@@ -183,3 +183,99 @@ def test_registration_is_skipped_on_an_opensre_without_the_hooks(
     monkeypatch.setattr(builtins, "__import__", _import)
 
     assert register_with_core() is False
+
+
+def _field(spec: Any, name: str) -> Any:
+    return next(field for field in spec.fields if field.name == name)
+
+
+@pytest.fixture
+def on_an_instance(monkeypatch: pytest.MonkeyPatch) -> Any:
+    """Pretend the metadata service answers, without touching the network.
+
+    The autouse fixture in conftest says we are off an instance, which is what
+    every other test wants; this overrides it for the few that need the opposite.
+    """
+    from yc_plugin import metadata
+
+    monkeypatch.setattr(metadata, "is_available", lambda: True)
+    monkeypatch.setattr(metadata, "fetch_folder_id", lambda: "b1ginstancefolder")
+    monkeypatch.setattr(metadata, "fetch_cloud_id", lambda: "b1ginstancecloud")
+
+
+def test_setup_prefills_folder_and_cloud_on_an_instance(on_an_instance: None) -> None:
+    """Both identifiers are already known there, so typing them is make-work."""
+    from yc_plugin.yandex_cloud.catalog_registration import setup_spec_for_this_host
+    from yc_plugin.yandex_cloud.setup import CLOUD_ID_FIELD, FOLDER_ID_FIELD
+
+    spec = setup_spec_for_this_host()
+
+    assert _field(spec, FOLDER_ID_FIELD).default == "b1ginstancefolder"
+    assert _field(spec, CLOUD_ID_FIELD).default == "b1ginstancecloud"
+
+
+def test_a_prefilled_folder_satisfies_the_required_check(on_an_instance: None) -> None:
+    """Metadata auth needs no credential; demanding a hand-typed folder read oddly.
+
+    ``apply_setup`` substitutes a default for a blank answer, so a field with one
+    can no longer fail as missing - which is the whole point here.
+    """
+    from yc_plugin.yandex_cloud.catalog_registration import setup_spec_for_this_host
+    from yc_plugin.yandex_cloud.setup import FOLDER_ID_FIELD
+
+    folder = _field(setup_spec_for_this_host(), FOLDER_ID_FIELD)
+
+    assert folder.required
+    assert folder.default
+
+
+def test_the_spec_is_untouched_off_an_instance() -> None:
+    """Nothing to prefill anywhere else, and the fixture in conftest says we are."""
+    from yc_plugin.yandex_cloud.catalog_registration import setup_spec_for_this_host
+    from yc_plugin.yandex_cloud.setup import YANDEX_CLOUD_SETUP
+
+    assert setup_spec_for_this_host() is YANDEX_CLOUD_SETUP
+
+
+def test_the_spec_is_untouched_when_metadata_answers_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reachable but empty - do not replace real defaults with blanks."""
+    from yc_plugin import metadata
+    from yc_plugin.yandex_cloud.catalog_registration import setup_spec_for_this_host
+    from yc_plugin.yandex_cloud.setup import YANDEX_CLOUD_SETUP
+
+    monkeypatch.setattr(metadata, "is_available", lambda: True)
+    monkeypatch.setattr(metadata, "fetch_folder_id", lambda: None)
+    monkeypatch.setattr(metadata, "fetch_cloud_id", lambda: None)
+
+    assert setup_spec_for_this_host() is YANDEX_CLOUD_SETUP
+
+
+def test_prefill_leaves_the_other_fields_alone(on_an_instance: None) -> None:
+    """Only the two identifiers change; credentials keep their own definitions."""
+    from yc_plugin.yandex_cloud.catalog_registration import setup_spec_for_this_host
+    from yc_plugin.yandex_cloud.setup import SA_KEY_FILE_FIELD, YANDEX_CLOUD_SETUP
+
+    spec = setup_spec_for_this_host()
+
+    assert _field(spec, SA_KEY_FILE_FIELD) == _field(YANDEX_CLOUD_SETUP, SA_KEY_FILE_FIELD)
+    assert [f.name for f in spec.fields] == [f.name for f in YANDEX_CLOUD_SETUP.fields]
+    assert spec.modes == YANDEX_CLOUD_SETUP.modes
+
+
+def test_the_setup_handler_uses_the_prefilled_spec(
+    registered: str, on_an_instance: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The wiring is what matters: the constant would carry no instance defaults."""
+    from integrations import cli
+
+    from yc_plugin.yandex_cloud.setup import FOLDER_ID_FIELD
+
+    captured: list[Any] = []
+    monkeypatch.setattr(cli, "_run_spec_setup", captured.append)
+
+    cli._HANDLERS[SERVICE]()
+
+    assert captured, "the handler did not run a setup spec"
+    assert _field(captured[0], FOLDER_ID_FIELD).default == "b1ginstancefolder"
