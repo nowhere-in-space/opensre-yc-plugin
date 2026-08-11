@@ -53,12 +53,33 @@ def install() -> None:
     for dotted in _TOOL_PACKAGES:
         register_external_tool_package(importlib.import_module(dotted))
 
+    _register_integration()
     _register_alerts()
     _keep_alerts_through_adapter_reinstall()
 
     _configure_llm()
     _configure_kubernetes()
     logger.info("yandex_cloud plugin installed: %d tool packages", len(_TOOL_PACKAGES))
+
+
+#: Whether this process joined OpenSRE's integration catalog. False against an
+#: OpenSRE without the registration hooks, where the plugin's own config file is
+#: the only source of credentials.
+registered_with_catalog = False
+
+
+def _register_integration() -> None:
+    """Make Yandex Cloud a service OpenSRE knows about, if this OpenSRE can.
+
+    Tools and alerts have had registration hooks for a while; the integration
+    itself did not, which is what Tracer-Cloud/opensre#4866 adds. Attempted, not
+    required - see ``yandex_cloud.catalog_registration``.
+    """
+    global registered_with_catalog
+
+    from yc_plugin.yandex_cloud.catalog_registration import register_with_core
+
+    registered_with_catalog = register_with_core()
 
 
 def _configure_kubernetes() -> None:
