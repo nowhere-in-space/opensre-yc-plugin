@@ -1,4 +1,4 @@
-# opensre-yc
+# opensre-yc (will be deprecated soon)
 
 Yandex Cloud support for [OpenSRE](https://github.com/Tracer-Cloud/opensre):
 a read-only integration that lets the agent investigate Yandex Cloud
