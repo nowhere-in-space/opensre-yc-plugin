@@ -1,4 +1,10 @@
-# opensre-yc
+# opensre-yc (superseded)
+
+Yandex Cloud support is part of OpenSRE itself since v0.1.2026.8.19. This
+plugin cannot run alongside it: both register the `yandex_cloud` integration,
+and OpenSRE refuses a plugin that claims a built-in key. Use the in-tree
+integration; this repository is kept for history and is tested against the
+last upstream commit that predates it.
 
 Yandex Cloud support for [OpenSRE](https://github.com/Tracer-Cloud/opensre):
 a read-only integration that lets the agent investigate Yandex Cloud
