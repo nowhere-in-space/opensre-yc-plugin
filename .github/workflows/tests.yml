@@ -30,6 +30,7 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: Tracer-Cloud/opensre
+          ref: dba850940ca9e5713ebfe78665a7ea287f771ff8
           path: opensre
 
       - name: Install uv
